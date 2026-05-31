@@ -1,0 +1,92 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /shared/python
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/api-gateway
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/auth-service
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/ingestion-service
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/retrieval-service
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/eval-service
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/trace-service
+    schedule:
+      interval: weekly
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /services/llm-gateway
+    schedule:
+      interval: weekly
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /services/web-app
+    schedule:
+      interval: weekly
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

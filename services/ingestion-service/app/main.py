@@ -1,0 +1,37 @@
+"""Ingestion Service for KnowledgeOps platform.
+
+Handles document parsing, chunking, deduplication, and embedding generation.
+"""
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.config import IngestionSettings
+from app.db.session import close_db, init_db
+from app.workers.ingest_worker import router as ingest_router
+
+settings = IngestionSettings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
+
+
+app = FastAPI(
+    title="KnowledgeOps Ingestion Service",
+    version="0.1.0",
+    description="Document ingestion pipeline with multi-format parsing.",
+    lifespan=lifespan,
+)
+
+app.include_router(ingest_router, tags=["ingestion"])
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Return service health."""
+    return {"status": "healthy", "service": "ingestion-service"}

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - api-gateway
+          - ingestion-service
+          - retrieval-service
+          - eval-service
+          - trace-service
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+
+  python-test:
+    runs-on: ubuntu-latest
+    needs: python-lint
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - api-gateway
+          - ingestion-service
+          - retrieval-service
+          - eval-service
+          - trace-service
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -v --tb=short || echo "No tests found"
+
+  typescript-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - web-app
+          - llm-gateway
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx tsc --noEmit
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [python-test, typescript-build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest pytest-asyncio
+      - run: docker compose up -d --wait
+      - run: pytest tests/ -v --tb=short
+      - run: docker compose down

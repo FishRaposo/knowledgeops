@@ -1,0 +1,14 @@
+{
+  "name": "@knowledgeops/shared-ts",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types and utilities for KnowledgeOps",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

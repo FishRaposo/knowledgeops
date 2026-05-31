@@ -1,0 +1,193 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-knowledgeops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-knowledgeops}
+      POSTGRES_DB: ${POSTGRES_DB:-knowledgeops}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-knowledgeops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "${API_GATEWAY_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      AUTH_SERVICE_URL: http://auth-service:8001
+      INGESTION_SERVICE_URL: http://ingestion-service:8002
+      RETRIEVAL_SERVICE_URL: http://retrieval-service:8003
+      EVAL_SERVICE_URL: http://eval-service:8005
+      TRACE_SERVICE_URL: http://trace-service:8006
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "${AUTH_SERVICE_PORT:-8001}:8001"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ingestion-service:
+    build:
+      context: ./services/ingestion-service
+      dockerfile: Dockerfile
+    ports:
+      - "${INGESTION_SERVICE_PORT:-8002}:8002"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LLM_GATEWAY_URL: http://llm-gateway:8004
+      CHUNK_SIZE: ${INGESTION_CHUNK_SIZE:-512}
+      CHUNK_OVERLAP: ${INGESTION_CHUNK_OVERLAP:-64}
+      MAX_FILE_SIZE_MB: ${INGESTION_MAX_FILE_SIZE_MB:-50}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      llm-gateway:
+        condition: service_started
+
+  retrieval-service:
+    build:
+      context: ./services/retrieval-service
+      dockerfile: Dockerfile
+    ports:
+      - "${RETRIEVAL_SERVICE_PORT:-8003}:8003"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LLM_GATEWAY_URL: http://llm-gateway:8004
+      TOP_K: ${RETRIEVAL_TOP_K:-5}
+      RERANK_TOP_K: ${RETRIEVAL_RERANK_TOP_K:-3}
+      SIMILARITY_THRESHOLD: ${RETRIEVAL_SIMILARITY_THRESHOLD:-0.7}
+      TRACE_SERVICE_URL: http://trace-service:8006
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      llm-gateway:
+        condition: service_started
+
+  llm-gateway:
+    build:
+      context: ./services/llm-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "${LLM_GATEWAY_PORT:-8004}:8004"
+    environment:
+      PORT: "8004"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEFAULT_PROVIDER: ${LLM_DEFAULT_PROVIDER:-openai}
+      DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-text-embedding-3-small}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CACHE_TTL_SECONDS: ${LLM_CACHE_TTL_SECONDS:-3600}
+      BUDGET_DEFAULT_MONTHLY: ${LLM_BUDGET_DEFAULT_MONTHLY:-100.00}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  eval-service:
+    build:
+      context: ./services/eval-service
+      dockerfile: Dockerfile
+    ports:
+      - "${EVAL_SERVICE_PORT:-8005}:8005"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      LLM_GATEWAY_URL: http://llm-gateway:8004
+      RETRIEVAL_SERVICE_URL: http://retrieval-service:8003
+      SEMANTIC_THRESHOLD: ${EVAL_SEMANTIC_THRESHOLD:-0.8}
+      CITATION_STRICT: ${EVAL_CITATION_STRICT:-True}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      retrieval-service:
+        condition: service_started
+
+  trace-service:
+    build:
+      context: ./services/trace-service
+      dockerfile: Dockerfile
+    ports:
+      - "${TRACE_SERVICE_PORT:-8006}:8006"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web-app:
+    build:
+      context: ./services/web-app
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_APP_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://api-gateway:8000
+      NEXT_PUBLIC_APP_NAME: KnowledgeOps
+    depends_on:
+      - api-gateway
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web-app
+      - api-gateway
+
+volumes:
+  postgres_data:
+  redis_data:

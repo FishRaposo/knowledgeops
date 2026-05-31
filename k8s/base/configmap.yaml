@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledgeops-config
+  namespace: knowledgeops
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  API_GATEWAY_PORT: "8000"
+  WEB_APP_PORT: "3000"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "knowledgeops"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  
+  # Service URLs
+  AUTH_SERVICE_URL: "http://auth-service:8000"
+  INGESTION_SERVICE_URL: "http://ingestion-service:8000"
+  RETRIEVAL_SERVICE_URL: "http://retrieval-service:8000"
+  EVAL_SERVICE_URL: "http://eval-service:8000"
+  TRACE_SERVICE_URL: "http://trace-service:8000"
+  LLM_GATEWAY_URL: "http://llm-gateway:3000"
+  
+  # Feature flags
+  ENABLE_TRACING: "true"
+  ENABLE_METRICS: "true"
