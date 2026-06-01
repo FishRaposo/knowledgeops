@@ -36,6 +36,7 @@ export interface ChatCompletionRequest {
   messages: Array<{ role: string; content: string }>;
   temperature?: number;
   max_tokens?: number;
+  stream?: boolean;
 }
 
 export interface EmbeddingRequest {
@@ -43,8 +44,21 @@ export interface EmbeddingRequest {
   input: string | string[];
 }
 
+export interface ChatCompletionChunk {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: { role?: string; content?: string };
+    finish_reason: string | null;
+  }>;
+}
+
 export interface LLMProvider {
   chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse>;
+  streamChatCompletion?(request: ChatCompletionRequest): AsyncGenerator<ChatCompletionChunk>;
   embedding(request: EmbeddingRequest): Promise<EmbeddingResponse>;
   name: string;
 }

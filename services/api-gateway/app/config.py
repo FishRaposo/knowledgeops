@@ -26,5 +26,6 @@ class GatewaySettings(BaseSettings):
     allow_dev_auth: bool = False
     demo_token: str = "dev-admin-token"
     cost_budget_limit_usd: float = 100.0
+    cors_allow_origins: list[str] = ["*"]
 
     model_config = {"env_file": ".env", "extra": "ignore"}

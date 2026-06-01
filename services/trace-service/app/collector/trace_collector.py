@@ -6,6 +6,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+
+from app.db.session import async_session_factory, db_available
 
 router = APIRouter(prefix="/traces")
 
@@ -62,6 +65,9 @@ class IngestResponse(BaseModel):
 async def ingest_spans(request: IngestRequest) -> IngestResponse:
     """Ingest trace spans from any service.
 
+    Writes to PostgreSQL when available, always mirrors to the
+    in-memory store so a DB outage never loses observability.
+
     Args:
         request: Ingest request with span data.
 
@@ -76,4 +82,32 @@ async def ingest_spans(request: IngestRequest) -> IngestResponse:
         _traces_store[span.trace_id].append(span.model_dump())
         trace_ids.add(span.trace_id)
 
+    if db_available:
+        await _persist_spans_to_db(request.spans)
+
     return IngestResponse(ingested=len(request.spans), trace_ids=list(trace_ids))
+
+
+async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
+    """Insert spans into the trace_spans table."""
+    async with async_session_factory() as session:
+        for span in spans:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO trace_spans (trace_id, span_id, parent_span_id, service, operation, start_time, end_time, attributes)
+                    VALUES (:trace_id, :span_id, :parent_span_id, :service, :operation, :start_time, :end_time, :attributes)
+                    """
+                ),
+                {
+                    "trace_id": span.trace_id,
+                    "span_id": span.span_id,
+                    "parent_span_id": span.parent_span_id,
+                    "service": span.service,
+                    "operation": span.operation,
+                    "start_time": span.start_time,
+                    "end_time": span.end_time,
+                    "attributes": span.attributes,
+                },
+            )
+        await session.commit()

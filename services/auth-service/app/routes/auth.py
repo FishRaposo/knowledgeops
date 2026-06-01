@@ -18,6 +18,8 @@ from app.auth import (
 from app.database import get_db
 from app.models import ApiKeyModel, UserModel
 
+from shared.models import User
+
 router = APIRouter()
 
 
@@ -29,22 +31,6 @@ class TokenRequest(BaseModel):
     """
 
     api_key: str = Field(description="API key to exchange for a JWT")
-
-
-class UserInfo(BaseModel):
-    """User information response.
-
-    Attributes:
-        id: User identifier.
-        email: User email.
-        name: Display name.
-        role: RBAC role.
-    """
-
-    id: str
-    email: str
-    name: str
-    role: str
 
 
 class ApiKeyCreate(BaseModel):
@@ -109,7 +95,7 @@ async def exchange_token(
 
 
 @router.get("/me")
-async def get_current_user(request: Request) -> UserInfo:
+async def get_current_user(request: Request) -> User:
     """Get the current user from the JWT bearer token."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -118,7 +104,7 @@ async def get_current_user(request: Request) -> UserInfo:
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid token")
-    return UserInfo(
+    return User(
         id=payload.user_id,
         email=payload.email,
         name="User",
@@ -214,15 +200,15 @@ async def revoke_api_key(
 async def list_users(
     x_user_role: str | None = Header(None),
     db: AsyncSession = Depends(get_db),
-) -> list[UserInfo]:
+) -> list[User]:
     """List all users (admin only)."""
     if x_user_role is not None and x_user_role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can list users")
     result = await db.execute(select(UserModel))
     users = result.scalars().all()
     return [
-        UserInfo(
-            id=str(user.id),
+        User(
+            id=user.id,
             email=user.email,
             name=user.name or "User",
             role=user.role,

@@ -1,11 +1,18 @@
-"""Hybrid search combining vector similarity and keyword matching."""
+"""Hybrid search combining vector similarity and keyword matching.
+
+When the database is available, queries use pgvector for vector similarity
+and ILIKE for keyword search.  When the database is down the service
+gracefully falls back to the in-memory index.
+"""
 
 from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app.config import RetrievalSettings
+from app.db.session import async_session_factory, db_available
 from app.search.index import index
 from app.search.reranking import rerank_results
 
@@ -82,7 +89,11 @@ class SearchResponse(BaseModel):
 
 @router.post("/import")
 async def import_data(request: ImportRequest) -> dict[str, Any]:
-    """Import documents and chunks into the in-memory search index.
+    """Import documents and chunks into the search backend.
+
+    When the database is reachable the data is also persisted there so
+    that subsequent searches can use pgvector.  The in-memory index is
+    always updated so that a DB outage never breaks retrieval.
 
     Args:
         request: Import data with documents and chunks.
@@ -97,11 +108,82 @@ async def import_data(request: ImportRequest) -> dict[str, Any]:
         chunk_data.setdefault("metadata", {})
         index.store_chunk(chunk_data)
 
+    if db_available:
+        await _persist_import_to_db(request)
+
     return {
         "documents_imported": len(request.documents),
         "chunks_imported": len(request.chunks),
         "total_chunks": index.chunk_count,
     }
+
+
+async def _persist_import_to_db(request: ImportRequest) -> None:
+    """Write imported documents and chunks to PostgreSQL."""
+    async with async_session_factory() as session:
+        for doc in request.documents:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO documents (id, title, source, content_hash, version, status, metadata)
+                    VALUES (:id, :title, :source, :content_hash, :version, :status, :metadata)
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        source = EXCLUDED.source,
+                        version = EXCLUDED.version,
+                        status = EXCLUDED.status,
+                        metadata = EXCLUDED.metadata,
+                        updated_at = NOW()
+                    """
+                ),
+                {
+                    "id": doc.id,
+                    "title": doc.title,
+                    "source": doc.source,
+                    "content_hash": "",
+                    "version": doc.version,
+                    "status": doc.status,
+                    "metadata": doc.metadata,
+                },
+            )
+        for chunk in request.chunks:
+            params: dict[str, Any] = {
+                "id": chunk.id,
+                "document_id": chunk.document_id,
+                "content": chunk.content,
+                "chunk_index": chunk.chunk_index,
+                "content_hash": "",
+                "metadata": chunk.metadata,
+            }
+            if chunk.embedding is not None:
+                params["embedding"] = chunk.embedding
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO chunks (id, document_id, content, chunk_index, content_hash, embedding, metadata)
+                        VALUES (:id, :document_id, :content, :chunk_index, :content_hash, :embedding, :metadata)
+                        ON CONFLICT (id) DO UPDATE SET
+                            content = EXCLUDED.content,
+                            embedding = EXCLUDED.embedding,
+                            metadata = EXCLUDED.metadata
+                        """
+                    ),
+                    params,
+                )
+            else:
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO chunks (id, document_id, content, chunk_index, content_hash, metadata)
+                        VALUES (:id, :document_id, :content, :chunk_index, :content_hash, :metadata)
+                        ON CONFLICT (id) DO UPDATE SET
+                            content = EXCLUDED.content,
+                            metadata = EXCLUDED.metadata
+                        """
+                    ),
+                    params,
+                )
+        await session.commit()
 
 
 @router.get("/import/stats")
@@ -110,6 +192,7 @@ async def import_stats() -> dict[str, Any]:
     return {
         "chunk_count": index.chunk_count,
         "document_count": len(index._documents),
+        "db_available": db_available,
     }
 
 
@@ -179,18 +262,9 @@ async def query_with_generation(request: SearchRequest) -> dict[str, Any]:
 
 
 async def _vector_search(query: str, top_k: int) -> list[SearchResult]:
-    """Execute vector similarity search via in-memory index.
-
-    Calls the LLM Gateway for the query embedding, then computes cosine
-    similarity against all stored chunk embeddings.
-
-    Args:
-        query: Query string.
-        top_k: Number of results.
-
-    Returns:
-        Vector search results.
-    """
+    """Execute vector similarity search via pgvector or in-memory index."""
+    if db_available:
+        return await _pgvector_search(query, top_k)
     raw_results = await index.vector_search(query, top_k)
     return [
         SearchResult(
@@ -204,19 +278,57 @@ async def _vector_search(query: str, top_k: int) -> list[SearchResult]:
     ]
 
 
+async def _pgvector_search(query: str, top_k: int) -> list[SearchResult]:
+    """Query pgvector for nearest chunks by cosine distance."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{settings.llm_gateway_url}/v1/embeddings",
+                json={"input": query, "model": "text-embedding-3-small"},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            embedding = list(resp.json()["data"][0]["embedding"])
+    except Exception:
+        return []
+
+    # pgvector <=> operator returns distance; similarity = 1 - distance
+    sql = text(
+        """
+        SELECT id, document_id, content, chunk_index, metadata,
+               1 - (embedding <=> :embedding) AS score
+        FROM chunks
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> :embedding
+        LIMIT :limit
+        """
+    )
+
+    async with async_session_factory() as session:
+        rows = await session.execute(sql, {"embedding": embedding, "limit": top_k})
+        results = []
+        for row in rows.mappings():
+            score = row["score"]
+            if score is not None and score < settings.similarity_threshold:
+                continue
+            results.append(
+                SearchResult(
+                    chunk_id=str(row["id"]),
+                    document_id=str(row["document_id"]),
+                    content=row["content"],
+                    score=round(float(score or 0.0), 4),
+                    metadata=row["metadata"] or {},
+                )
+            )
+        return results
+
+
 async def _keyword_search(query: str, top_k: int) -> list[SearchResult]:
-    """Execute keyword search via in-memory index.
-
-    Tokenizes the query and scores chunks by term overlap with
-    the chunk content.
-
-    Args:
-        query: Query string.
-        top_k: Number of results.
-
-    Returns:
-        Keyword search results.
-    """
+    """Execute keyword search via PostgreSQL ILIKE or in-memory index."""
+    if db_available:
+        return await _pg_keyword_search(query, top_k)
     raw_results = index.keyword_search(query, top_k)
     return [
         SearchResult(
@@ -228,6 +340,34 @@ async def _keyword_search(query: str, top_k: int) -> list[SearchResult]:
         )
         for chunk, score in raw_results
     ]
+
+
+async def _pg_keyword_search(query: str, top_k: int) -> list[SearchResult]:
+    """Keyword search using PostgreSQL ILIKE."""
+    pattern = f"%{query}%"
+    sql = text(
+        """
+        SELECT id, document_id, content, chunk_index, metadata
+        FROM chunks
+        WHERE content ILIKE :pattern
+        LIMIT :limit
+        """
+    )
+
+    async with async_session_factory() as session:
+        rows = await session.execute(sql, {"pattern": pattern, "limit": top_k})
+        results = []
+        for row in rows.mappings():
+            results.append(
+                SearchResult(
+                    chunk_id=str(row["id"]),
+                    document_id=str(row["document_id"]),
+                    content=row["content"],
+                    score=1.0,
+                    metadata=row["metadata"] or {},
+                )
+            )
+        return results
 
 
 def _reciprocal_rank_fusion(

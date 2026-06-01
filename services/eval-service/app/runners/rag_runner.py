@@ -7,8 +7,10 @@ from uuid import uuid4
 from fastapi import APIRouter
 from httpx import AsyncClient
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app.config import EvalSettings
+from app.db.session import async_session_factory, db_available
 from app.judges.semantic_match import semantic_match_score
 from app.judges.citation_check import check_citations
 from app.judges.refusal_check import check_refusal
@@ -69,6 +71,9 @@ class TestCase(BaseModel):
 async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
     """Execute an evaluation run against the retrieval pipeline.
 
+    Persists the run and results to PostgreSQL when available, always
+    mirroring to the in-memory store so a DB outage never loses data.
+
     Args:
         request: Eval run request with suite path.
 
@@ -77,6 +82,10 @@ async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
     """
     run_id = str(uuid4())
     run_name = request.name or f"eval-run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    started_at = datetime.now(timezone.utc)
+
+    if db_available:
+        await _insert_eval_run(run_id, run_name, started_at)
 
     test_cases = await _load_test_cases(request.suite_path)
     results: list[dict[str, Any]] = []
@@ -101,13 +110,19 @@ async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
             scores["citation_check"] = 1.0 if check_citations(case.expected_citations, actual_citations) else 0.0
             scores["refusal_check"] = 1.0 if check_refusal(case.should_refuse, actual_refusal) else 0.0
 
-            results.append({
+            result = {
                 "query": case.query,
                 "expected": case.expected_answer,
                 "actual": actual_answer,
                 "scores": scores,
                 "citations": actual_citations,
-            })
+            }
+            results.append(result)
+
+            if db_available:
+                await _insert_eval_result(run_id, result)
+
+    completed_at = datetime.now(timezone.utc)
 
     eval_data = {
         "id": run_id,
@@ -115,14 +130,73 @@ async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
         "status": "completed",
         "total_cases": len(test_cases),
         "results": results,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
     }
 
     _eval_runs[run_id] = eval_data
+
+    if db_available:
+        await _complete_eval_run(run_id, completed_at)
+
     await _emit_eval_trace(run_id, run_name, len(test_cases), results)
 
     return EvalRunResponse(**eval_data)
+
+
+async def _insert_eval_run(run_id: str, name: str, started_at: datetime) -> None:
+    async with async_session_factory() as session:
+        await session.execute(
+            text(
+                """
+                INSERT INTO eval_runs (id, name, status, config, started_at)
+                VALUES (:id, :name, :status, :config, :started_at)
+                """
+            ),
+            {
+                "id": run_id,
+                "name": name,
+                "status": "running",
+                "config": {},
+                "started_at": started_at.isoformat(),
+            },
+        )
+        await session.commit()
+
+
+async def _insert_eval_result(run_id: str, result: dict[str, Any]) -> None:
+    async with async_session_factory() as session:
+        await session.execute(
+            text(
+                """
+                INSERT INTO eval_results (run_id, query, expected, actual, scores)
+                VALUES (:run_id, :query, :expected, :actual, :scores)
+                """
+            ),
+            {
+                "run_id": run_id,
+                "query": result["query"],
+                "expected": result.get("expected"),
+                "actual": result.get("actual"),
+                "scores": result.get("scores", {}),
+            },
+        )
+        await session.commit()
+
+
+async def _complete_eval_run(run_id: str, completed_at: datetime) -> None:
+    async with async_session_factory() as session:
+        await session.execute(
+            text(
+                """
+                UPDATE eval_runs
+                SET status = 'completed', completed_at = :completed_at
+                WHERE id = :id
+                """
+            ),
+            {"id": run_id, "completed_at": completed_at.isoformat()},
+        )
+        await session.commit()
 
 
 @router.get("/runs")
@@ -132,6 +206,28 @@ async def list_runs() -> list[dict[str, Any]]:
     Returns:
         List of evaluation run summaries.
     """
+    if db_available:
+        async with async_session_factory() as session:
+            rows = await session.execute(
+                text(
+                    """
+                    SELECT id, name, status, started_at, completed_at,
+                           (SELECT COUNT(*) FROM eval_results WHERE run_id = eval_runs.id) AS total_cases
+                    FROM eval_runs
+                    ORDER BY started_at DESC
+                    """
+                )
+            )
+            return [
+                {
+                    "id": str(row["id"]),
+                    "name": row["name"],
+                    "status": row["status"],
+                    "total_cases": row["total_cases"] or 0,
+                }
+                for row in rows.mappings()
+            ]
+
     return [
         {
             "id": run["id"],
@@ -153,6 +249,40 @@ async def get_run(run_id: str) -> dict[str, Any]:
     Returns:
         Full evaluation run data with results.
     """
+    if db_available:
+        async with async_session_factory() as session:
+            run_row = await session.execute(
+                text("SELECT * FROM eval_runs WHERE id = :id"),
+                {"id": run_id},
+            )
+            run = run_row.mappings().one_or_none()
+            if run is None:
+                return {"error": "Run not found"}
+
+            result_rows = await session.execute(
+                text("SELECT query, expected, actual, scores FROM eval_results WHERE run_id = :run_id"),
+                {"run_id": run_id},
+            )
+            results = [
+                {
+                    "query": row["query"],
+                    "expected": row["expected"],
+                    "actual": row["actual"],
+                    "scores": row["scores"] or {},
+                }
+                for row in result_rows.mappings()
+            ]
+
+            return {
+                "id": str(run["id"]),
+                "name": run["name"],
+                "status": run["status"],
+                "total_cases": len(results),
+                "results": results,
+                "started_at": str(run["started_at"]),
+                "completed_at": str(run["completed_at"]) if run["completed_at"] else None,
+            }
+
     if run_id not in _eval_runs:
         return {"error": "Run not found"}
     return _eval_runs[run_id]

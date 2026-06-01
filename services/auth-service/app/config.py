@@ -17,5 +17,7 @@ class AuthSettings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60
+    jwt_issuer: str = "knowledgeops-auth"
+    jwt_audience: str = "knowledgeops-api"
 
     model_config = {"env_file": ".env", "extra": "ignore"}

@@ -27,10 +27,15 @@ const defaultEmbeddingProviderMap: Record<string, string> = {
   "text-embedding-ada-002": "openai",
 };
 
+const _openaiKey = process.env.OPENAI_API_KEY || "";
+const _defaultProvider = _openaiKey
+  ? (process.env.DEFAULT_PROVIDER || "openai")
+  : "mock";
+
 export const config: GatewayConfig = {
   port: parseInt(process.env.PORT || "8004", 10),
-  openaiApiKey: process.env.OPENAI_API_KEY || "",
-  defaultProvider: process.env.DEFAULT_PROVIDER || "openai",
+  openaiApiKey: _openaiKey,
+  defaultProvider: _defaultProvider,
   defaultModel: process.env.DEFAULT_MODEL || "gpt-4o-mini",
   embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
   redisUrl: process.env.REDIS_URL || "redis://redis:6379/0",

@@ -103,6 +103,26 @@ export interface CostRecord {
   created_at: string;
 }
 
+export interface CostSummary {
+  total_usd: number;
+  by_service: Record<string, number>;
+  by_model: Record<string, number>;
+  by_user: Record<string, number>;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  costs: CostRecord[];
+}
+
+export interface AlertRecord {
+  type: string;
+  severity: "info" | "warning" | "critical";
+  message: string;
+  current_value?: number;
+  threshold?: number;
+  trace_id?: string;
+  span_id?: string;
+}
+
 export interface HealthResponse {
   status: "healthy" | "degraded" | "unhealthy";
   service: string;

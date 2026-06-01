@@ -6,6 +6,7 @@ import {
   LLMProvider,
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ChatCompletionChunk,
   EmbeddingRequest,
   EmbeddingResponse,
 } from "./base";
@@ -48,6 +49,36 @@ export class OpenAIProvider implements LLMProvider {
         total_tokens: response.usage?.total_tokens || 0,
       },
     };
+  }
+
+  async *streamChatCompletion(request: ChatCompletionRequest): AsyncGenerator<ChatCompletionChunk> {
+    const stream = await this.client.chat.completions.create({
+      model: request.model,
+      messages: request.messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: m.content,
+      })),
+      temperature: request.temperature,
+      max_tokens: request.max_tokens,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      yield {
+        id: chunk.id,
+        object: chunk.object,
+        created: chunk.created,
+        model: chunk.model,
+        choices: chunk.choices.map((choice) => ({
+          index: choice.index,
+          delta: {
+            role: choice.delta.role,
+            content: choice.delta.content || "",
+          },
+          finish_reason: choice.finish_reason,
+        })),
+      };
+    }
   }
 
   async embedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {

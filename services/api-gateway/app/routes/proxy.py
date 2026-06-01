@@ -246,6 +246,6 @@ def _envelope(payload: Any, collection_key: str) -> dict[str, Any]:
         return payload
     if isinstance(payload, list):
         return {collection_key: payload}
-    if collection_key.endswith("s"):
-        return {collection_key: [] if payload is None else payload}
+    if payload is None:
+        return {collection_key: [] if collection_key.endswith("s") else None}
     return {collection_key: payload}

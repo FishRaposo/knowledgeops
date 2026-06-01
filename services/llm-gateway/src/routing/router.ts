@@ -1,20 +1,27 @@
-/** Provider routing based on configuration. */
+/** Provider routing based on configuration with instance caching. */
 
 import { LLMProvider } from "../providers/base";
 import { OpenAIProvider } from "../providers/openai";
 import { MockProvider } from "../providers/mock";
 
-const providers: Record<string, () => LLMProvider> = {
+const factories: Record<string, () => LLMProvider> = {
   openai: () => new OpenAIProvider(),
   mock: () => new MockProvider(),
 };
 
+const _cache: Record<string, LLMProvider> = {};
+
 export function getProvider(name: string): LLMProvider {
-  const factory = providers[name];
-  if (!factory) {
-    throw new Error(`Unknown provider: ${name}. Available: ${Object.keys(providers).join(", ")}`);
+  if (_cache[name]) {
+    return _cache[name];
   }
-  return factory();
+  const factory = factories[name];
+  if (!factory) {
+    throw new Error(`Unknown provider: ${name}. Available: ${Object.keys(factories).join(", ")}`);
+  }
+  const instance = factory();
+  _cache[name] = instance;
+  return instance;
 }
 
 export function getProviderForModel(
@@ -27,9 +34,10 @@ export function getProviderForModel(
 }
 
 export function registerProvider(name: string, factory: () => LLMProvider): void {
-  providers[name] = factory;
+  factories[name] = factory;
+  delete _cache[name];
 }
 
 export function listProviders(): string[] {
-  return Object.keys(providers);
+  return Object.keys(factories);
 }

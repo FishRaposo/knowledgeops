@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: auth-service
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: ingestion-service
+          resources:
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retrieval-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: retrieval-service
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: llm-gateway
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eval-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: eval-service
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trace-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: trace-service
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: web-app
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"

@@ -23,11 +23,34 @@ export interface ModelInfo {
   owned_by: string;
 }
 
+function _sendSSE(res: Response, data: unknown): void {
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
 export const proxyHandler = {
   async chatCompletion(req: Request, res: Response): Promise<void> {
     const body = req.body as ChatCompletionRequest;
     const model = body.model || config.defaultModel;
     const provider = getProviderForModel(model, config.modelProviderMap, config.defaultProvider);
+
+    if (body.stream && provider.streamChatCompletion) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      try {
+        for await (const chunk of provider.streamChatCompletion({ ...body, model })) {
+          _sendSSE(res, chunk);
+        }
+        _sendSSE(res, "[DONE]");
+        res.end();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        _sendSSE(res, { error: { message, type: "provider_error" } });
+        res.end();
+      }
+      return;
+    }
 
     try {
       const result = await provider.chatCompletion({ ...body, model });

@@ -8,8 +8,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import IngestionSettings
-from app.db.session import close_db, init_db
+from app.db.session import close_db, db_available, init_db
 from app.workers.ingest_worker import router as ingest_router
+from app.workers.queue import close_redis_pool
 
 settings = IngestionSettings()
 
@@ -18,6 +19,7 @@ settings = IngestionSettings()
 async def lifespan(app: FastAPI):
     await init_db()
     yield
+    await close_redis_pool()
     await close_db()
 
 
@@ -34,4 +36,5 @@ app.include_router(ingest_router, tags=["ingestion"])
 @app.get("/health")
 async def health() -> dict[str, str]:
     """Return service health."""
-    return {"status": "healthy", "service": "ingestion-service"}
+    status = "healthy" if db_available else "degraded"
+    return {"status": status, "service": "ingestion-service"}

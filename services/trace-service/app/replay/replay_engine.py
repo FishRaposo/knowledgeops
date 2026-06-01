@@ -4,8 +4,11 @@ from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app.collector.trace_collector import _traces_store
+from app.db.session import async_session_factory, db_available
+from app.storage.trace_store import _span_from_row
 
 router = APIRouter(prefix="/traces")
 
@@ -49,10 +52,19 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
     Returns:
         Replay result with operation plan.
     """
-    spans = sorted(
-        _traces_store.get(trace_id, []),
-        key=lambda span: span.get("start_time", ""),
-    )
+    if db_available:
+        async with async_session_factory() as session:
+            rows = await session.execute(
+                text("SELECT * FROM trace_spans WHERE trace_id = :trace_id ORDER BY start_time"),
+                {"trace_id": trace_id},
+            )
+            spans = [_span_from_row(row) for row in rows.mappings()]
+    else:
+        spans = sorted(
+            _traces_store.get(trace_id, []),
+            key=lambda span: span.get("start_time", ""),
+        )
+
     operations = [
         {
             "service": span.get("service", "unknown"),

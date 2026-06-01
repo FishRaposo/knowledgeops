@@ -121,16 +121,19 @@ function handleRedisBudget(
 
 function handleMemoryBudget(
   budgetKey: string,
-  userId: string,
-  req: Request,
+  _userId: string,
+  _req: Request,
   res: Response,
   next: NextFunction,
 ): void {
-  if (!memoryFallback.has(budgetKey)) {
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const existing = memoryFallback.get(budgetKey);
+
+  if (!existing || existing.period !== currentPeriod) {
     memoryFallback.set(budgetKey, {
       spent: 0,
       limit: config.budgetDefaultMonthly,
-      period: new Date().toISOString().slice(0, 7),
+      period: currentPeriod,
     });
   }
 

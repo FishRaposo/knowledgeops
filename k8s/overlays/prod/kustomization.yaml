@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: knowledgeops-prod
+
+bases:
+  - ../../base
+
+patchesStrategicMerge:
+  - resource-limits.yaml
+
+resources:
+  - hpa.yaml
+  - pdb.yaml

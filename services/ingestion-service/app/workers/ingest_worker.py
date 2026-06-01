@@ -10,8 +10,10 @@ from uuid import uuid4
 import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+
 from app.config import IngestionSettings
-from app.db.session import async_session_factory
+from app.db.session import async_session_factory, db_available
 from app.models.chunk import Chunk
 from app.models.document import Document
 from app.parsers import PARSERS
@@ -55,6 +57,23 @@ async def _persist_document(doc_data: dict[str, Any]) -> None:
             metadata_=doc_data.get("metadata", {}),
         )
         session.add(document)
+        await session.commit()
+        # Mirror version to document_versions audit table
+        await session.execute(
+            text(
+                """
+                INSERT INTO document_versions (document_id, version_number, content_hash)
+                VALUES (:document_id, :version_number, :content_hash)
+                ON CONFLICT (document_id, version_number) DO UPDATE SET
+                    content_hash = EXCLUDED.content_hash
+                """
+            ),
+            {
+                "document_id": doc_data["id"],
+                "version_number": doc_data["version"],
+                "content_hash": doc_data["content_hash"],
+            },
+        )
         await session.commit()
 
 
@@ -206,7 +225,7 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
     content = await file.read()
     doc_id = str(uuid4())
     job_id = str(uuid4())
-    version = get_next_version(file.filename or "unknown")
+    version = await get_next_version(file.filename or "unknown")
     filename = file.filename or "unknown"
 
     with tempfile.NamedTemporaryFile(suffix=ext, delete=True) as tmp:
@@ -224,15 +243,15 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
         "progress": 10,
     }
 
-    asyncio.create_task(
-        _process_document_background(
-            job_id=job_id,
-            doc_id=doc_id,
-            parse_result=parse_result,
-            filename=filename,
-            content_hash=content_hash,
-            version=version,
-        )
+    from app.workers.queue import enqueue_ingestion
+
+    await enqueue_ingestion(
+        job_id=job_id,
+        doc_id=doc_id,
+        parse_result=parse_result,
+        filename=filename,
+        content_hash=content_hash,
+        version=version,
     )
 
     created_at = datetime.now(timezone.utc).isoformat()
@@ -255,6 +274,33 @@ async def list_documents() -> list[DocumentResponse]:
     Returns:
         List of document metadata.
     """
+    if db_available:
+        async with async_session_factory() as session:
+            rows = await session.execute(
+                text(
+                    """
+                    SELECT d.id, d.title, d.source, d.status, d.version, d.created_at,
+                           COUNT(c.id) AS chunk_count
+                    FROM documents d
+                    LEFT JOIN chunks c ON c.document_id = d.id
+                    GROUP BY d.id
+                    ORDER BY d.created_at DESC
+                    """
+                )
+            )
+            return [
+                DocumentResponse(
+                    id=str(row["id"]),
+                    title=row["title"],
+                    source=row["source"],
+                    status=row["status"],
+                    version=row["version"],
+                    chunk_count=row["chunk_count"] or 0,
+                    created_at=str(row["created_at"]) if row["created_at"] else "",
+                )
+                for row in rows.mappings()
+            ]
+
     return [
         DocumentResponse(
             id=doc["id"],
@@ -277,8 +323,42 @@ async def get_document(doc_id: str) -> dict[str, Any]:
         doc_id: Document identifier.
 
     Returns:
-        Full document metadata.
+        Full document metadata with chunks.
     """
+    if db_available:
+        async with async_session_factory() as session:
+            doc_row = await session.execute(
+                text("SELECT * FROM documents WHERE id = :id"),
+                {"id": doc_id},
+            )
+            doc = doc_row.mappings().one_or_none()
+            if doc is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+            chunk_rows = await session.execute(
+                text("SELECT id, content, chunk_index, metadata FROM chunks WHERE document_id = :doc_id"),
+                {"doc_id": doc_id},
+            )
+            chunks = [
+                {
+                    "id": str(row["id"]),
+                    "content": row["content"],
+                    "chunk_index": row["chunk_index"],
+                    "metadata": row["metadata"] or {},
+                }
+                for row in chunk_rows.mappings()
+            ]
+            return {
+                "id": str(doc["id"]),
+                "title": doc["title"],
+                "source": doc["source"],
+                "status": doc["status"],
+                "version": doc["version"],
+                "metadata": doc["metadata"] or {},
+                "created_at": str(doc["created_at"]) if doc["created_at"] else "",
+                "updated_at": str(doc["updated_at"]) if doc["updated_at"] else "",
+                "chunks": chunks,
+            }
+
     if doc_id not in _documents_store:
         raise HTTPException(status_code=404, detail="Document not found")
     return _documents_store[doc_id]
@@ -294,9 +374,22 @@ async def delete_document(doc_id: str) -> dict[str, str]:
     Returns:
         Confirmation message.
     """
-    if doc_id not in _documents_store:
-        raise HTTPException(status_code=404, detail="Document not found")
-    del _documents_store[doc_id]
+    if db_available:
+        async with async_session_factory() as session:
+            await session.execute(
+                text("DELETE FROM chunks WHERE document_id = :doc_id"),
+                {"doc_id": doc_id},
+            )
+            result = await session.execute(
+                text("DELETE FROM documents WHERE id = :id RETURNING id"),
+                {"id": doc_id},
+            )
+            if result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+            await session.commit()
+
+    if doc_id in _documents_store:
+        del _documents_store[doc_id]
     _chunks_store.pop(doc_id, None)
     return {"message": f"Document {doc_id} deleted"}
 

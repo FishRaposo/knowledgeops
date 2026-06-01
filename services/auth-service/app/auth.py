@@ -87,6 +87,9 @@ def create_access_token(user_id: UUID, email: str, role: str) -> TokenResponse:
         "role": role,
         "exp": expires,
         "iat": now,
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+        "jti": secrets.token_urlsafe(16),
     }
 
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
@@ -99,6 +102,8 @@ def create_access_token(user_id: UUID, email: str, role: str) -> TokenResponse:
 def verify_token(token: str) -> Optional[TokenPayload]:
     """Verify and decode a JWT access token.
 
+    Validates issuer, audience, expiration, and issued-at claims.
+
     Args:
         token: JWT token string.
 
@@ -107,7 +112,12 @@ def verify_token(token: str) -> Optional[TokenPayload]:
     """
     try:
         decoded: dict[str, Any] = jwt.decode(
-            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            issuer=settings.jwt_issuer,
+            audience=settings.jwt_audience,
+            options={"require": ["exp", "iat", "iss", "aud"]},
         )
         return TokenPayload(**decoded)
     except jwt.PyJWTError:

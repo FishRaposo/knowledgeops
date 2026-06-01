@@ -1,6 +1,7 @@
 """KnowledgeOps shared Python utilities."""
 
 from shared.config import BaseServiceSettings
+from shared.db import create_async_engine_and_session, is_db_available
 from shared.health import HealthResponse, HealthStatus
 from shared.models import (
     Chunk,
@@ -18,6 +19,8 @@ from shared.models import (
 
 __all__ = [
     "BaseServiceSettings",
+    "create_async_engine_and_session",
+    "is_db_available",
     "HealthResponse",
     "HealthStatus",
     "Chunk",
