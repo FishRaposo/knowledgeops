@@ -19,7 +19,13 @@ def create_async_engine_and_session(url: str, **kwargs: Any) -> tuple[Any, async
     Returns:
         Tuple of (engine, session_factory).
     """
-    engine = create_async_engine(url, **kwargs)
+    # Rewrite postgresql:// to postgresql+asyncpg:// for async compatibility
+    async_url = url
+    if url.startswith("postgresql://"):
+        async_url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgres://"):
+        async_url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    engine = create_async_engine(async_url, **kwargs)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     return engine, session_factory
 
