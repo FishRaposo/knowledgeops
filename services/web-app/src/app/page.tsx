@@ -11,6 +11,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthSummary | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -29,157 +30,160 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full" />
-        <span className="ml-3 text-gray-500">Connecting to KnowledgeOps...</span>
+      <div className="flex flex-col items-center justify-center py-24 text-slate-400 font-sans">
+        <div className="animate-spin h-10 w-10 border-4 border-violet-500 border-t-transparent rounded-full" />
+        <span className="ml-3 mt-4 text-sm font-semibold tracking-wide">Syncing KnowledgeOps clusters...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-400">
-        <h2 className="font-semibold text-lg">Connection Error</h2>
-        <p className="text-sm mt-1">{error}</p>
-        <p className="text-sm mt-2">Make sure the API gateway is running and accessible.</p>
-        <button onClick={() => window.location.reload()} className="btn-primary mt-3 text-sm">
-          Retry
+      <div className="mx-auto max-w-lg mt-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-2xl p-8 text-center backdrop-blur-md shadow-xl">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto text-rose-500 mb-4">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+        <h2 className="font-extrabold text-xl text-slate-900 dark:text-slate-100">Gateway Disconnection</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+          {error}. Ensure the primary API Gateway service is active and running in your container ecosystem.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 rounded-xl bg-violet-600 px-6 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/30 transition-all hover:bg-violet-500 active:scale-95"
+        >
+          Retry Connection
         </button>
       </div>
     );
   }
 
+  const actionsList = [
+    { title: "Chat Module", desc: "Interact with grounded knowledge bases via SSE query retrieval with integrated citations.", href: "/chat", border: "hover:border-violet-500/50" },
+    { title: "Document Vault", desc: "Ingest and manage files across PDF, HTML, MD, and DOCX templates.", href: "/documents", border: "hover:border-sky-500/50" },
+    { title: "Evaluations Bench", desc: "Execute automated evaluations with semantic, citation, and LLM-as-judge engines.", href: "/evals", border: "hover:border-emerald-500/50" },
+    { title: "Distributed Tracing", desc: "Monitor multi-layered span trees and telemetry pathways in real-time.", href: "/traces", border: "hover:border-pink-500/50" },
+    { title: "FinOps Spendings", desc: "Aggregated LLM operational costs organized by microservice, model, and active token rates.", href: "/costs", border: "hover:border-amber-500/50" },
+    { title: "Admin Console", desc: "Control RBAC policies, API keys creation, and cluster configurations.", href: "/admin", border: "hover:border-indigo-500/50" }
+  ];
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">KnowledgeOps</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            An open source reference architecture for internal AI knowledge tools.
+    <div className="font-sans text-slate-100 max-w-6xl mx-auto px-4 py-8">
+      {/* Premium glowing header block */}
+      <div className="relative mb-12 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-md">
+        <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" />
+        <div className="absolute left-1/3 bottom-0 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-indigo-400 bg-clip-text text-transparent">
+              KnowledgeOps Platform
+            </h1>
+            <p className="mt-2 text-slate-400 text-sm max-w-2xl leading-relaxed">
+              The reference microservices architecture for enterprise knowledge pipelines. Coordinate document processing, trace telemetry vectors, and monitor token spending.
+            </p>
+          </div>
+          {health && (
+            <div className="mt-4 md:mt-0 flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-1 text-xs font-semibold text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
+              <span className="uppercase tracking-wider">{health.status}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Feature Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        {actionsList.map((act, index) => (
+          <a
+            key={index}
+            href={act.href}
+            onMouseEnter={() => setHoveredCard(index)}
+            onMouseLeave={() => setHoveredCard(null)}
+            className={`rounded-xl border border-slate-800/80 bg-slate-900/40 p-6 shadow-lg backdrop-blur-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-slate-900/60 cursor-pointer ${act.border}`}
+          >
+            <h2 className="text-lg font-bold text-slate-200 mb-2 transition-colors duration-200">
+              {act.title}
+            </h2>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              {act.desc}
+            </p>
+          </a>
+        ))}
+      </div>
+
+      {/* Sibling Showcase Projects Section */}
+      <div>
+        <div className="border-t border-slate-800/85 pt-10 mb-6">
+          <h2 className="text-xl font-bold text-slate-200">
+            Showcase Integrations
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            External showcase systems fully linked and monitored inside the unified KnowledgeOps platform ecosystem.
           </p>
         </div>
-        {health && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className={`h-2.5 w-2.5 rounded-full ${health.status === "healthy" ? "bg-green-500" : "bg-yellow-500"}`} />
-            <span className="text-gray-500">{health.status}</span>
-          </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <a href="/chat" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Chat</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Query your knowledge base with grounded retrieval and citations.
-          </p>
-        </a>
-
-        <a href="/documents" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Documents</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Upload and manage documents across PDF, Markdown, HTML, and DOCX.
-          </p>
-        </a>
-
-        <a href="/evals" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Evaluations</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Run automated RAG evaluations with semantic, citation, and refusal judges.
-          </p>
-        </a>
-
-        <a href="/traces" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Traces</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Browse and inspect distributed traces across all services.
-          </p>
-        </a>
-
-        <a href="/costs" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Costs</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Track LLM spending by service, model, and user.
-          </p>
-        </a>
-
-        <a href="/admin" className="card hover:border-brand-400 transition-colors">
-          <h2 className="text-xl font-semibold mb-2">Admin</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Manage users, API keys, and system configuration.
-          </p>
-        </a>
-      </div>
-
-      <div className="mt-10">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Connected Projects
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          External services integrated into the KnowledgeOps platform.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <a
             href="http://localhost:3000"
             target="_blank"
             rel="noopener noreferrer"
-            className="card hover:border-green-400 transition-colors"
+            className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-emerald-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
-              <h3 className="font-semibold">GroundTruth</h3>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
+              <h3 className="font-bold text-sm text-slate-200 group-hover:text-emerald-400 transition-colors">GroundTruth</h3>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              RAG assistant with doc processing, OCR, and approval workflows.
+            <p className="text-slate-450 text-[11px] leading-relaxed">
+              RAG system with template detection, OCR parsing, and active approval workflows.
             </p>
-            <p className="text-xs text-gray-400 mt-2">Port 3000</p>
+            <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3000</div>
           </a>
 
           <a
             href="http://localhost:3001"
             target="_blank"
             rel="noopener noreferrer"
-            className="card hover:border-blue-400 transition-colors"
+            className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-sky-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
-              <h3 className="font-semibold">LLM Gateway</h3>
+              <span className="h-2 w-2 rounded-full bg-sky-500 shadow-[0_0_8px_#38bdf8]" />
+              <h3 className="font-bold text-sm text-slate-200 group-hover:text-sky-400 transition-colors">LLM Gateway</h3>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              LLM proxy with guardrails, routing, and cost analytics.
+            <p className="text-slate-450 text-[11px] leading-relaxed">
+              Highly secure LLM proxy with PII masking, cost-aware routers, and active circuit-breaker states.
             </p>
-            <p className="text-xs text-gray-400 mt-2">Port 3001</p>
+            <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3001</div>
           </a>
 
           <a
             href="http://localhost:3002"
             target="_blank"
             rel="noopener noreferrer"
-            className="card hover:border-purple-400 transition-colors"
+            className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-purple-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-purple-500" />
-              <h3 className="font-semibold">EvalForge</h3>
+              <span className="h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_8px_#8b5cf6]" />
+              <h3 className="font-bold text-sm text-slate-200 group-hover:text-purple-400 transition-colors">EvalForge</h3>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              AI evaluation harness with compliance rule packs.
+            <p className="text-slate-450 text-[11px] leading-relaxed">
+              Ethical AI validation suites with semantic judges and code regression detectors.
             </p>
-            <p className="text-xs text-gray-400 mt-2">Port 3002</p>
+            <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3002</div>
           </a>
 
           <a
             href="http://localhost:3003"
             target="_blank"
             rel="noopener noreferrer"
-            className="card hover:border-orange-400 transition-colors"
+            className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-pink-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-orange-500" />
-              <h3 className="font-semibold">AgentTrace</h3>
+              <span className="h-2 w-2 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899]" />
+              <h3 className="font-bold text-sm text-slate-200 group-hover:text-pink-400 transition-colors">AgentTrace</h3>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              Distributed tracing and cost attribution for agent runs.
+            <p className="text-slate-450 text-[11px] leading-relaxed">
+              Trace observability SDK tracking multi-tenant correlation IDs and deep span hierarchies.
             </p>
-            <p className="text-xs text-gray-400 mt-2">Port 3003</p>
+            <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3003</div>
           </a>
         </div>
       </div>

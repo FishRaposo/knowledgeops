@@ -1,4 +1,4 @@
-"""Re-export all shared KnowledgeOps types from the shared-ts package."""
+// Re-export all shared KnowledgeOps types from the shared-ts package.
 
 export {
   type Document,
