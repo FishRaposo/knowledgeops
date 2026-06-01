@@ -1,8 +1,15 @@
 """Shared pytest fixtures for integration tests."""
 
 import os
+import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
+
+# Add shared/python to path for service imports
+SHARED_PYTHON = Path(__file__).parent.parent / "shared" / "python"
+if str(SHARED_PYTHON) not in sys.path:
+    sys.path.insert(0, str(SHARED_PYTHON))
 
 import pytest
 
