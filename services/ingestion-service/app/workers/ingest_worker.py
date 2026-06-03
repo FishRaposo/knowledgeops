@@ -1,6 +1,5 @@
 """Ingestion worker and API routes for document processing."""
 
-import asyncio
 import os
 import tempfile
 from datetime import datetime, timezone

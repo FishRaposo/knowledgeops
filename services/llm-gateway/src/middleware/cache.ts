@@ -1,9 +1,9 @@
 /** Redis-backed response cache middleware with in-memory fallback. */
 
 import { Request, Response, NextFunction } from "express";
-import { Redis } from "ioredis";
 import crypto from "crypto";
 import { config } from "../config";
+import { getRedis, isRedisAvailable } from "../redis";
 
 interface CacheEntry {
   body: unknown;
@@ -11,44 +11,6 @@ interface CacheEntry {
 }
 
 const memoryFallback = new Map<string, CacheEntry>();
-
-let redis: Redis | null = null;
-let redisAvailable = false;
-
-function getRedis(): Redis | null {
-  if (redis) {
-    return redis;
-  }
-  try {
-    redis = new Redis(config.redisUrl, {
-      lazyConnect: true,
-      maxRetriesPerRequest: 2,
-      retryStrategy: () => null,
-    });
-    redis.on("error", () => {
-      redisAvailable = false;
-    });
-    redis.on("connect", () => {
-      redisAvailable = true;
-    });
-  } catch {
-    redisAvailable = false;
-  }
-  return redis;
-}
-
-async function tryRedisConnect(): Promise<void> {
-  const client = getRedis();
-  if (!client) return;
-  try {
-    await client.connect();
-    redisAvailable = true;
-  } catch {
-    redisAvailable = false;
-  }
-}
-
-tryRedisConnect();
 
 function getCacheKey(req: Request): string {
   const payload = JSON.stringify({ path: req.path, body: req.body });
@@ -62,8 +24,9 @@ export function cacheMiddleware(req: Request, res: Response, next: NextFunction)
   }
 
   const key = getCacheKey(req);
+  const redis = getRedis();
 
-  if (redisAvailable && redis) {
+  if (isRedisAvailable() && redis) {
     redis.get(key).then((cached) => {
       if (cached) {
         try {

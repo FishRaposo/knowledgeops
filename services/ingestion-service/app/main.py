@@ -6,6 +6,7 @@ Handles document parsing, chunking, deduplication, and embedding generation.
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import IngestionSettings
 from app.db.session import close_db, db_available, init_db
@@ -28,6 +29,14 @@ app = FastAPI(
     version="0.1.0",
     description="Document ingestion pipeline with multi-format parsing.",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(ingest_router, tags=["ingestion"])

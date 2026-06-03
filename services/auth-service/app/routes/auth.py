@@ -133,7 +133,7 @@ async def verify_token_endpoint(request: Request) -> dict[str, Any]:
 @router.post("/keys")
 async def create_api_key(
     request: ApiKeyCreate,
-    x_user_role: str | None = Header(None),
+    x_user_role: str | None = Header(None),  # WARNING: trusts X-User-Role from API Gateway without JWT verification
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyResponse:
     """Create a new API key."""
@@ -198,7 +198,7 @@ async def revoke_api_key(
 
 @router.get("/users")
 async def list_users(
-    x_user_role: str | None = Header(None),
+    x_user_role: str | None = Header(None),  # WARNING: trusts X-User-Role from API Gateway without JWT verification
     db: AsyncSession = Depends(get_db),
 ) -> list[User]:
     """List all users (admin only)."""

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import RetrievalSettings
 from app.db.session import check_db, close_db, db_available
@@ -30,6 +31,14 @@ app = FastAPI(
     version="0.1.0",
     description="Hybrid retrieval with vector and keyword search.",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(search_router, tags=["search"])

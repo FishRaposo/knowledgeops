@@ -1,6 +1,9 @@
 """Standalone arq worker for the ingestion service."""
 
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from arq.connections import RedisSettings
 from arq.worker import Worker

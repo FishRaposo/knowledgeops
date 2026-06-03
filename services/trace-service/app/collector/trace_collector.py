@@ -1,8 +1,6 @@
 """Trace collector API for receiving trace spans from services."""
 
-from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field

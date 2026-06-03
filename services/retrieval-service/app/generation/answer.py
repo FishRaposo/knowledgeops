@@ -60,7 +60,7 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
     trace_id = str(uuid4())
     prompt_tokens = _estimate_tokens(prompt)
     completion_tokens = 0
-    model = "gpt-4o-mini"
+    model = settings.generation_model
 
     try:
         async with httpx.AsyncClient() as client:

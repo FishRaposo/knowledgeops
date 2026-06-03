@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import EvalSettings
 from app.db.session import check_db, close_db, db_available
@@ -29,6 +30,14 @@ app = FastAPI(
     version="0.1.0",
     description="RAG evaluation harness with configurable judges.",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(runner_router, tags=["eval"])

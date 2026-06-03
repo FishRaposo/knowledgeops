@@ -1,46 +1,8 @@
 /** Redis-backed budget enforcement middleware. */
 
 import { Request, Response, NextFunction } from "express";
-import { Redis } from "ioredis";
 import { config } from "../config";
-
-let redis: Redis | null = null;
-let redisAvailable = false;
-
-function getRedis(): Redis | null {
-  if (redis) {
-    return redis;
-  }
-  try {
-    redis = new Redis(config.redisUrl, {
-      lazyConnect: true,
-      maxRetriesPerRequest: 2,
-      retryStrategy: () => null,
-    });
-    redis.on("error", () => {
-      redisAvailable = false;
-    });
-    redis.on("connect", () => {
-      redisAvailable = true;
-    });
-  } catch {
-    redisAvailable = false;
-  }
-  return redis;
-}
-
-async function tryRedisConnect(): Promise<void> {
-  const client = getRedis();
-  if (!client) return;
-  try {
-    await client.connect();
-    redisAvailable = true;
-  } catch {
-    redisAvailable = false;
-  }
-}
-
-tryRedisConnect();
+import { getRedis, isRedisAvailable } from "../redis";
 
 const memoryFallback = new Map<string, { spent: number; limit: number; period: string }>();
 
@@ -56,8 +18,9 @@ function getUserKey(req: Request): string {
 export function budgetMiddleware(req: Request, res: Response, next: NextFunction): void {
   const userId = getUserKey(req);
   const budgetKey = getBudgetKey(userId);
+  const redis = getRedis();
 
-  if (redisAvailable && redis) {
+  if (isRedisAvailable() && redis) {
     handleRedisBudget(redis, budgetKey, userId, req, res, next);
   } else {
     handleMemoryBudget(budgetKey, userId, req, res, next);
@@ -165,8 +128,9 @@ function handleMemoryBudget(
 export async function getBudgetStatus(userId: string): Promise<{ spent: number; limit: number } | null> {
   const month = new Date().toISOString().slice(0, 7);
   const budgetKey = `budget:${userId}:${month}`;
+  const redis = getRedis();
 
-  if (redisAvailable && redis) {
+  if (isRedisAvailable() && redis) {
     try {
       const value = await redis.get(budgetKey);
       if (value) {

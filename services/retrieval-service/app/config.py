@@ -14,6 +14,7 @@ class RetrievalSettings(BaseSettings):
         rerank_top_k: Number of results after reranking.
         similarity_threshold: Minimum similarity score for valid results.
         trace_service_url: Trace service URL for logging.
+        generation_model: LLM model for answer generation.
     """
 
     database_url: str = "postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops"
@@ -23,5 +24,6 @@ class RetrievalSettings(BaseSettings):
     rerank_top_k: int = 3
     similarity_threshold: float = 0.7
     trace_service_url: str = "http://trace-service:8006"
+    generation_model: str = "gpt-4o-mini"  # Model for answer generation
 
     model_config = {"env_file": ".env", "extra": "ignore"}

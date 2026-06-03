@@ -61,6 +61,8 @@ async def enqueue_ingestion(
             version=version,
         )
     else:
+        # TODO: Replace with Redis-based task queue for persistence.
+        # Fire-and-forget asyncio.create_task loses data on restart.
         asyncio.create_task(
             _process_document_background(
                 job_id=job_id,
