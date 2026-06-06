@@ -43,10 +43,12 @@ class Citation(BaseModel):
 
 
 def _chunk_to_citation(
-    chunk: dict[str, object], score: float = 0.85
+    chunk: dict[str, object], score: float = 0.85, doc: dict[str, Any] | None = None
 ) -> Citation:
     doc_id = str(chunk.get("document_id", "unknown"))
-    doc = index.get_document(doc_id)
+    if doc is None:
+        # Fallback to synchronous retrieve if not bulk loaded (mostly for local tests)
+        doc = index.get_document(doc_id)
     document_title = (
         str(doc["title"]) if doc and doc.get("title")
         else str(chunk.get("metadata", {}).get("title", "Document"))
@@ -68,15 +70,19 @@ def _chunk_to_citation(
 async def assemble_citations(request: CitationRequest) -> list[Citation]:
     """Assemble citations from chunk IDs and answer text.
 
-    Looks up chunk data from the in-memory index and constructs
-    proper citations with real document titles and excerpts.
+    Looks up chunk data from the database (falling back to in-memory)
+    and constructs proper citations with real document titles and excerpts.
     """
-    chunks = index.get_chunks_by_ids(request.chunk_ids)
-    return [_chunk_to_citation(c) for c in chunks]
+    chunks = await index.get_chunks_by_ids_async(request.chunk_ids)
+    doc_ids = list(set(str(c["document_id"]) for c in chunks if c.get("document_id")))
+    docs = await index.get_documents_by_ids_async(doc_ids)
+    docs_map = {str(d["id"]): d for d in docs}
+    return [_chunk_to_citation(c, doc=docs_map.get(str(c.get("document_id")))) for c in chunks]
 
 
 @router.get("/{doc_id}")
 async def get_document_citations(doc_id: str) -> list[Citation]:
     """Get all citations for a document."""
-    chunks = index.get_chunks_by_document(doc_id)
-    return [_chunk_to_citation(c) for c in chunks]
+    chunks = await index.get_chunks_by_document_async(doc_id)
+    doc = await index.get_document_async(doc_id)
+    return [_chunk_to_citation(c, doc=doc) for c in chunks]

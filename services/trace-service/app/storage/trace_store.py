@@ -96,6 +96,79 @@ async def _get_all_spans_for_aggregation() -> list[dict[str, Any]]:
 @router.get("/traces/costs")
 async def get_costs() -> dict[str, Any]:
     """Get cost summary aggregated from trace data."""
+    if db_available:
+        async with async_session_factory() as session:
+            # 1. Total and token sums
+            res = await session.execute(
+                text(
+                    """
+                    SELECT COALESCE(SUM(total_cost_usd), 0) AS total_usd,
+                           COALESCE(SUM(prompt_tokens), 0) AS total_prompt_tokens,
+                           COALESCE(SUM(completion_tokens), 0) AS total_completion_tokens
+                    FROM cost_records
+                    """
+                )
+            )
+            agg = res.mappings().one()
+            total_usd = float(agg["total_usd"])
+            total_prompt_tokens = int(agg["total_prompt_tokens"])
+            total_completion_tokens = int(agg["total_completion_tokens"])
+
+            # 2. Group by service
+            res = await session.execute(
+                text("SELECT service, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY service")
+            )
+            by_service = {row["service"]: float(row["cost"]) for row in res.mappings()}
+
+            # 3. Group by model
+            res = await session.execute(
+                text("SELECT model, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY model")
+            )
+            by_model = {row["model"]: float(row["cost"]) for row in res.mappings()}
+
+            # 4. Group by user
+            res = await session.execute(
+                text("SELECT COALESCE(user_id::text, 'anonymous') AS user_id, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY user_id")
+            )
+            by_user = {row["user_id"]: float(row["cost"]) for row in res.mappings()}
+
+            # 5. Detail cost records
+            res = await session.execute(
+                text(
+                    """
+                    SELECT id, service, COALESCE(user_id::text, 'anonymous') AS user_id, model,
+                           prompt_tokens, completion_tokens, total_cost_usd, request_id, created_at
+                    FROM cost_records
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                    """
+                )
+            )
+            cost_records = [
+                {
+                    "id": str(row["id"]),
+                    "service": row["service"],
+                    "user_id": row["user_id"],
+                    "model": row["model"],
+                    "prompt_tokens": row["prompt_tokens"],
+                    "completion_tokens": row["completion_tokens"],
+                    "total_cost_usd": float(row["total_cost_usd"]),
+                    "request_id": row["request_id"],
+                    "created_at": str(row["created_at"]) if row["created_at"] else "",
+                }
+                for row in res.mappings()
+            ]
+
+            return {
+                "total_usd": round(total_usd, 6),
+                "by_service": {k: round(v, 6) for k, v in by_service.items()},
+                "by_model": {k: round(v, 6) for k, v in by_model.items()},
+                "by_user": {k: round(v, 6) for k, v in by_user.items()},
+                "total_prompt_tokens": total_prompt_tokens,
+                "total_completion_tokens": total_completion_tokens,
+                "costs": cost_records,
+            }
+
     all_spans = await _get_all_spans_for_aggregation()
 
     by_service: dict[str, float] = {}
@@ -173,18 +246,41 @@ async def get_alerts(
             }
         )
 
-    all_spans = await _get_all_spans_for_aggregation()
-    for span in all_spans:
-        attrs = span.get("attributes", {})
-        if attrs.get("status") in {"error", "failed"} or attrs.get("error"):
-            alerts.append(
-                {
-                    "type": "service_failure",
-                    "severity": "warning",
-                    "message": f"{span.get('service', 'unknown')} reported {span.get('operation', 'unknown')} failure.",
-                    "trace_id": span.get("trace_id"),
-                    "span_id": span.get("span_id"),
-                }
+    if db_available:
+        async with async_session_factory() as session:
+            # Query trace_spans table directly for failures
+            res = await session.execute(
+                text(
+                    """
+                    SELECT service, operation, trace_id, span_id, attributes
+                    FROM trace_spans
+                    WHERE attributes->>'status' IN ('error', 'failed') OR attributes->>'error' IS NOT NULL
+                    """
+                )
             )
+            for row in res.mappings():
+                alerts.append(
+                    {
+                        "type": "service_failure",
+                        "severity": "warning",
+                        "message": f"{row['service']} reported {row['operation']} failure.",
+                        "trace_id": row["trace_id"],
+                        "span_id": row["span_id"],
+                    }
+                )
+    else:
+        all_spans = await _get_all_spans_for_aggregation()
+        for span in all_spans:
+            attrs = span.get("attributes", {})
+            if attrs.get("status") in {"error", "failed"} or attrs.get("error"):
+                alerts.append(
+                    {
+                        "type": "service_failure",
+                        "severity": "warning",
+                        "message": f"{span.get('service', 'unknown')} reported {span.get('operation', 'unknown')} failure.",
+                        "trace_id": span.get("trace_id"),
+                        "span_id": span.get("span_id"),
+                    }
+                )
 
     return {"alerts": alerts, "total": len(alerts), "budget_limit_usd": limit}

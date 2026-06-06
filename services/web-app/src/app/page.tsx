@@ -114,16 +114,17 @@ export default function Home() {
       <div>
         <div className="border-t border-slate-800/85 pt-10 mb-6">
           <h2 className="text-xl font-bold text-slate-200">
-            Showcase Integrations
+            Showcase Integrations (Sibling Portfolio)
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            External showcase systems fully linked and monitored inside the unified KnowledgeOps platform ecosystem.
+            External showcase systems fully linked and monitored inside the unified KnowledgeOps platform ecosystem. 
+            <span className="text-slate-400 italic ml-1 block mt-0.5">Note: These are sibling projects in the portfolio ecosystem.</span>
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <a
-            href="http://localhost:3000"
+            href={process.env.NEXT_PUBLIC_SHOWCASE_GROUNDTRUTH_URL || "http://localhost:3000"}
             target="_blank"
             rel="noopener noreferrer"
             className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-emerald-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
@@ -132,14 +133,14 @@ export default function Home() {
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
               <h3 className="font-bold text-sm text-slate-200 group-hover:text-emerald-400 transition-colors">GroundTruth</h3>
             </div>
-            <p className="text-slate-450 text-[11px] leading-relaxed">
+            <p className="text-slate-400 text-[11px] leading-relaxed">
               RAG system with template detection, OCR parsing, and active approval workflows.
             </p>
             <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3000</div>
           </a>
 
           <a
-            href="http://localhost:3001"
+            href={process.env.NEXT_PUBLIC_SHOWCASE_LLMGATEWAY_URL || "http://localhost:3001"}
             target="_blank"
             rel="noopener noreferrer"
             className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-sky-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
@@ -148,14 +149,14 @@ export default function Home() {
               <span className="h-2 w-2 rounded-full bg-sky-500 shadow-[0_0_8px_#38bdf8]" />
               <h3 className="font-bold text-sm text-slate-200 group-hover:text-sky-400 transition-colors">LLM Gateway</h3>
             </div>
-            <p className="text-slate-450 text-[11px] leading-relaxed">
+            <p className="text-slate-400 text-[11px] leading-relaxed">
               Highly secure LLM proxy with PII masking, cost-aware routers, and active circuit-breaker states.
             </p>
             <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3001</div>
           </a>
 
           <a
-            href="http://localhost:3002"
+            href={process.env.NEXT_PUBLIC_SHOWCASE_EVALFORGE_URL || "http://localhost:3002"}
             target="_blank"
             rel="noopener noreferrer"
             className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-purple-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
@@ -164,14 +165,14 @@ export default function Home() {
               <span className="h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_8px_#8b5cf6]" />
               <h3 className="font-bold text-sm text-slate-200 group-hover:text-purple-400 transition-colors">EvalForge</h3>
             </div>
-            <p className="text-slate-450 text-[11px] leading-relaxed">
+            <p className="text-slate-400 text-[11px] leading-relaxed">
               Ethical AI validation suites with semantic judges and code regression detectors.
             </p>
             <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3002</div>
           </a>
 
           <a
-            href="http://localhost:3003"
+            href={process.env.NEXT_PUBLIC_SHOWCASE_AGENTTRACE_URL || "http://localhost:3003"}
             target="_blank"
             rel="noopener noreferrer"
             className="group rounded-xl border border-slate-800 bg-slate-900/30 p-5 hover:border-pink-500/30 hover:bg-slate-900/50 shadow-md transition-all hover:-translate-y-1"
@@ -180,7 +181,7 @@ export default function Home() {
               <span className="h-2 w-2 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899]" />
               <h3 className="font-bold text-sm text-slate-200 group-hover:text-pink-400 transition-colors">AgentTrace</h3>
             </div>
-            <p className="text-slate-450 text-[11px] leading-relaxed">
+            <p className="text-slate-400 text-[11px] leading-relaxed">
               Trace observability SDK tracking multi-tenant correlation IDs and deep span hierarchies.
             </p>
             <div className="text-[10px] text-slate-600 font-semibold tracking-wider uppercase mt-4">API Port 3003</div>

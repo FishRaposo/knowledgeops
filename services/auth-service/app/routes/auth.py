@@ -130,15 +130,26 @@ async def verify_token_endpoint(request: Request) -> dict[str, Any]:
     }
 
 
+async def get_admin_role_from_token(request: Request) -> str:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    token = auth_header[len("Bearer "):]
+    payload = verify_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    if payload.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return payload.role
+
+
 @router.post("/keys")
 async def create_api_key(
     request: ApiKeyCreate,
-    x_user_role: str | None = Header(None),  # WARNING: trusts X-User-Role from API Gateway without JWT verification
+    role: str = Depends(get_admin_role_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyResponse:
     """Create a new API key."""
-    if x_user_role is not None and x_user_role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can create API keys")
     user_result = await db.execute(select(UserModel).where(UserModel.email == request.user_email))
     user = user_result.scalar_one_or_none()
     if user is None:
@@ -198,12 +209,10 @@ async def revoke_api_key(
 
 @router.get("/users")
 async def list_users(
-    x_user_role: str | None = Header(None),  # WARNING: trusts X-User-Role from API Gateway without JWT verification
+    role: str = Depends(get_admin_role_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> list[User]:
     """List all users (admin only)."""
-    if x_user_role is not None and x_user_role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can list users")
     result = await db.execute(select(UserModel))
     users = result.scalars().all()
     return [

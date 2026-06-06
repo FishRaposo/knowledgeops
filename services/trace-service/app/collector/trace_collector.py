@@ -87,7 +87,7 @@ async def ingest_spans(request: IngestRequest) -> IngestResponse:
 
 
 async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
-    """Insert spans into the trace_spans table."""
+    """Insert spans into the trace_spans table and cost records table."""
     async with async_session_factory() as session:
         for span in spans:
             await session.execute(
@@ -108,4 +108,47 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
                     "attributes": span.attributes,
                 },
             )
+
+            # Check if span contains cost attributes and write to cost_records table
+            attrs = span.attributes
+            if attrs and (attrs.get("total_cost_usd") or attrs.get("prompt_tokens") or attrs.get("completion_tokens")):
+                cost = float(attrs.get("total_cost_usd", 0.0) or 0.0)
+                prompt_tokens = int(attrs.get("prompt_tokens", 0) or 0)
+                completion_tokens = int(attrs.get("completion_tokens", 0) or 0)
+                model = str(attrs.get("model", "unknown"))
+                user_id_str = attrs.get("user_id")
+
+                user_uuid = None
+                if user_id_str:
+                    try:
+                        from uuid import UUID
+                        temp_uuid = UUID(str(user_id_str))
+                        # Verify user_id exists in users table to prevent Foreign Key violations
+                        res = await session.execute(
+                            text("SELECT id FROM users WHERE id = :id"),
+                            {"id": temp_uuid}
+                        )
+                        if res.scalar() is not None:
+                            user_uuid = temp_uuid
+                    except Exception:
+                        user_uuid = None
+
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO cost_records (service, user_id, model, prompt_tokens, completion_tokens, total_cost_usd, request_id, created_at)
+                        VALUES (:service, :user_id, :model, :prompt_tokens, :completion_tokens, :total_cost_usd, :request_id, :created_at)
+                        """
+                    ),
+                    {
+                        "service": span.service,
+                        "user_id": user_uuid,
+                        "model": model,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_cost_usd": cost,
+                        "request_id": span.trace_id,
+                        "created_at": span.end_time,
+                    }
+                )
         await session.commit()

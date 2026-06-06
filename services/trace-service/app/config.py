@@ -1,16 +1,23 @@
 """Trace service configuration."""
 
-from pydantic_settings import BaseSettings
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
+
+from shared.config import BaseServiceSettings
 
 
-class TraceSettings(BaseSettings):
+class TraceSettings(BaseServiceSettings):
     """Configuration for the Trace Service.
 
+    Inherits common fields (database_url, redis_url, log_level) from
+    BaseServiceSettings and adds trace-specific settings.
+
     Attributes:
-        database_url: PostgreSQL connection string.
+        budget_alert_limit_usd: Cost threshold for budget alerts.
+        retrieval_service_url: URL for the retrieval service.
     """
 
-    database_url: str = "postgresql://knowledgeops:knowledgeops@db:5432/knowledgeops"
     budget_alert_limit_usd: float = 100.0
-
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    retrieval_service_url: str = "http://retrieval-service:8003"

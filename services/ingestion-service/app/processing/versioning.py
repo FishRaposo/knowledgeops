@@ -22,7 +22,14 @@ async def get_next_version(source: str) -> int:
     if db_available:
         async with async_session_factory() as session:
             result = await session.execute(
-                text("SELECT COALESCE(MAX(version), 0) AS max_version FROM documents WHERE source = :source"),
+                text(
+                    """
+                    SELECT COALESCE(MAX(v.version_number), 0) AS max_version
+                    FROM document_versions v
+                    JOIN documents d ON v.document_id = d.id
+                    WHERE d.source = :source
+                    """
+                ),
                 {"source": source},
             )
             row = result.mappings().one_or_none()

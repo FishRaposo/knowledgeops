@@ -147,11 +147,12 @@ async def _process_document_background(
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        _documents_store[doc_id] = doc_data
-        _chunks_store[doc_id] = chunks_data
-
-        await _persist_document(doc_data)
-        await _persist_chunks(doc_id, chunks_data)
+        if db_available:
+            await _persist_document(doc_data)
+            await _persist_chunks(doc_id, chunks_data)
+        else:
+            _documents_store[doc_id] = doc_data
+            _chunks_store[doc_id] = chunks_data
 
         _jobs_store[job_id]["status"] = "completed"
         _jobs_store[job_id]["progress"] = 100

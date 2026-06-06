@@ -49,6 +49,113 @@ class InMemoryIndex:
         self._chunks.clear()
         self._documents.clear()
 
+    async def get_chunks_by_ids_async(self, chunk_ids: list[str]) -> list[dict[str, Any]]:
+        from app.db.session import db_available, async_session_factory
+        from sqlalchemy import text
+        if db_available:
+            async with async_session_factory() as session:
+                rows = await session.execute(
+                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE id = ANY(:ids)"),
+                    {"ids": chunk_ids},
+                )
+                return [
+                    {
+                        "id": str(row["id"]),
+                        "document_id": str(row["document_id"]),
+                        "content": row["content"],
+                        "chunk_index": row["chunk_index"],
+                        "metadata": row["metadata"] or {},
+                    }
+                    for row in rows.mappings()
+                ]
+        return [self._chunks[cid] for cid in chunk_ids if cid in self._chunks]
+
+    async def get_documents_by_ids_async(self, doc_ids: list[str]) -> list[dict[str, Any]]:
+        from app.db.session import db_available, async_session_factory
+        from sqlalchemy import text
+        if db_available:
+            async with async_session_factory() as session:
+                rows = await session.execute(
+                    text("SELECT id, title, source, metadata, version, status FROM documents WHERE id = ANY(:ids)"),
+                    {"ids": doc_ids},
+                )
+                return [
+                    {
+                        "id": str(row["id"]),
+                        "title": row["title"],
+                        "source": row["source"],
+                        "metadata": row["metadata"] or {},
+                        "version": row["version"],
+                        "status": row["status"],
+                    }
+                    for row in rows.mappings()
+                ]
+        return [self._documents[did] for did in doc_ids if did in self._documents]
+
+    async def get_chunks_by_document_async(self, doc_id: str) -> list[dict[str, Any]]:
+        from app.db.session import db_available, async_session_factory
+        from sqlalchemy import text
+        if db_available:
+            async with async_session_factory() as session:
+                rows = await session.execute(
+                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE document_id = :doc_id"),
+                    {"doc_id": doc_id},
+                )
+                return [
+                    {
+                        "id": str(row["id"]),
+                        "document_id": str(row["document_id"]),
+                        "content": row["content"],
+                        "chunk_index": row["chunk_index"],
+                        "metadata": row["metadata"] or {},
+                    }
+                    for row in rows.mappings()
+                ]
+        return [c for c in self._chunks.values() if c.get("document_id") == doc_id]
+
+    async def get_document_async(self, doc_id: str) -> dict[str, Any] | None:
+        from app.db.session import db_available, async_session_factory
+        from sqlalchemy import text
+        if db_available:
+            async with async_session_factory() as session:
+                row = await session.execute(
+                    text("SELECT id, title, source, metadata, version, status FROM documents WHERE id = :id"),
+                    {"id": doc_id},
+                )
+                doc = row.mappings().one_or_none()
+                if doc:
+                    return {
+                        "id": str(doc["id"]),
+                        "title": doc["title"],
+                        "source": doc["source"],
+                        "metadata": doc["metadata"] or {},
+                        "version": doc["version"],
+                        "status": doc["status"],
+                    }
+                return None
+        return self._documents.get(doc_id)
+
+    async def get_chunk_async(self, chunk_id: str) -> dict[str, Any] | None:
+        from app.db.session import db_available, async_session_factory
+        from sqlalchemy import text
+        if db_available:
+            async with async_session_factory() as session:
+                row = await session.execute(
+                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE id = :id"),
+                    {"id": chunk_id},
+                )
+                chunk = row.mappings().one_or_none()
+                if chunk:
+                    return {
+                        "id": str(chunk["id"]),
+                        "document_id": str(chunk["document_id"]),
+                        "content": chunk["content"],
+                        "chunk_index": chunk["chunk_index"],
+                        "metadata": chunk["metadata"] or {},
+                    }
+                return None
+        return self._chunks.get(chunk_id)
+
     @property
     def chunk_count(self) -> int:
         return len(self._chunks)

@@ -169,7 +169,7 @@ async def proxy_admin_users(
     async with AsyncClient(timeout=10.0) as client:
         response = await client.get(
             f"{settings.auth_service_url}/auth/users",
-            headers={"X-User-Role": str(auth.get("role", ""))},
+            headers={"Authorization": request.headers.get("Authorization", "")},
         )
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
@@ -207,7 +207,7 @@ async def proxy_admin_create_key(
         response = await client.post(
             f"{settings.auth_service_url}/auth/keys",
             json=body,
-            headers={"X-User-Role": str(auth.get("role", ""))},
+            headers={"Authorization": request.headers.get("Authorization", "")},
         )
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)

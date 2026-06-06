@@ -34,10 +34,10 @@ export function cacheMiddleware(req: Request, res: Response, next: NextFunction)
           res.setHeader("X-Cache", "HIT");
           res.json(entry.body);
         } catch {
-          missAndStoreRedis(key, req, res, next);
+          missAndStoreRedis(key, redis, req, res, next);
         }
       } else {
-        missAndStoreRedis(key, req, res, next);
+        missAndStoreRedis(key, redis, req, res, next);
       }
     }).catch(() => {
       fallbackMissAndStore(key, req, res, next);
@@ -48,7 +48,7 @@ export function cacheMiddleware(req: Request, res: Response, next: NextFunction)
   fallbackMissAndStore(key, req, res, next);
 }
 
-function missAndStoreRedis(key: string, req: Request, res: Response, next: NextFunction): void {
+function missAndStoreRedis(key: string, redis: any, req: Request, res: Response, next: NextFunction): void {
   const originalJson = res.json.bind(res);
   res.json = (body: unknown) => {
     if (redis) {

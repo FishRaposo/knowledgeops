@@ -48,6 +48,16 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX idx_documents_content_hash ON documents(content_hash);
 CREATE INDEX idx_documents_status ON documents(status);
 
+-- ─── Document Versions ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS document_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (document_id, version_number)
+);
+
 -- ─── Chunks ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -149,5 +159,6 @@ INSERT INTO users (email, name, role) VALUES
     ('viewer@knowledgeops.local', 'View Only User', 'viewer');
 
 INSERT INTO schema_versions (version, description) VALUES
-    ('001_initial', 'Initial KnowledgeOps tables for auth, ingestion, eval, trace, and cost tracking')
+    ('001_initial', 'Initial KnowledgeOps tables for auth, ingestion, eval, trace, and cost tracking'),
+    ('002_add_document_versions', 'Add document_versions audit table')
 ON CONFLICT (version) DO NOTHING;

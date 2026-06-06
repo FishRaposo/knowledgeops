@@ -1,10 +1,18 @@
 """Gateway service configuration."""
 
-from pydantic_settings import BaseSettings
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
+
+from shared.config import BaseServiceSettings
 
 
-class GatewaySettings(BaseSettings):
+class GatewaySettings(BaseServiceSettings):
     """Configuration for the API Gateway.
+
+    Inherits common fields from BaseServiceSettings and adds service URL
+    routing and gateway-specific settings.
 
     Attributes:
         auth_service_url: Base URL for the Auth Service.
@@ -13,7 +21,6 @@ class GatewaySettings(BaseSettings):
         eval_service_url: Base URL for the Eval Service.
         trace_service_url: Base URL for the Trace Service.
         llm_gateway_url: Base URL for the LLM Gateway.
-        log_level: Logging level.
     """
 
     auth_service_url: str = "http://auth-service:8001"
@@ -22,10 +29,7 @@ class GatewaySettings(BaseSettings):
     eval_service_url: str = "http://eval-service:8005"
     trace_service_url: str = "http://trace-service:8006"
     llm_gateway_url: str = "http://llm-gateway:8004"
-    log_level: str = "INFO"
     allow_dev_auth: bool = False
     demo_token: str = "dev-admin-token"
     cost_budget_limit_usd: float = 100.0
     cors_allow_origins: list[str] = ["*"]
-
-    model_config = {"env_file": ".env", "extra": "ignore"}

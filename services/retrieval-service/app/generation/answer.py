@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from app.citation.assembler import _chunk_to_citation
 from app.config import RetrievalSettings
 from app.search.index import index
+from shared.config import estimate_cost
 
 router = APIRouter()
 settings = RetrievalSettings()
@@ -94,14 +95,32 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
         completion_tokens = _estimate_tokens(answer_text)
 
     citations = []
+    chunk_ids = [r.chunk_id for r in results[:3]]
+    chunks = await index.get_chunks_by_ids_async(chunk_ids)
+    chunks_map = {str(c["id"]): c for c in chunks}
+
+    doc_ids = []
+    for c in chunks:
+        if c.get("document_id"):
+            doc_ids.append(str(c["document_id"]))
+    for r in results[:3]:
+        if r.document_id:
+            doc_ids.append(str(r.document_id))
+    doc_ids = list(set(doc_ids))
+    docs = await index.get_documents_by_ids_async(doc_ids)
+    docs_map = {str(d["id"]): d for d in docs}
+
     for result in results[:3]:
-        chunk = index.get_chunk(result.chunk_id) or {
-            "id": result.chunk_id,
-            "document_id": result.document_id,
-            "content": result.content,
-            "metadata": result.metadata,
-        }
-        citations.append(_chunk_to_citation(chunk, result.score).model_dump())
+        chunk = chunks_map.get(str(result.chunk_id))
+        if not chunk:
+            chunk = {
+                "id": result.chunk_id,
+                "document_id": result.document_id,
+                "content": result.content,
+                "metadata": result.metadata,
+            }
+        doc = docs_map.get(str(chunk.get("document_id")))
+        citations.append(_chunk_to_citation(chunk, result.score, doc=doc).model_dump())
 
     confidence = min(results[0].score, 1.0) if results else 0.0
     await _emit_cost_trace(
@@ -110,7 +129,7 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
         model=model,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        total_cost_usd=_estimate_cost(model, prompt_tokens, completion_tokens),
+        total_cost_usd=estimate_cost(model, prompt_tokens, completion_tokens),
     )
 
     return {
@@ -121,15 +140,7 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
 
 
 def _estimate_tokens(text: str) -> int:
-    return max(1, len(text.split()))
-
-
-def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    # Local deterministic estimate for demo and tests; production gateways can
-    # replace this with provider usage metadata.
-    prompt_rate = 0.00000015
-    completion_rate = 0.0000006
-    return round((prompt_tokens * prompt_rate) + (completion_tokens * completion_rate), 6)
+    return max(1, len(text) // 4)
 
 
 async def _emit_cost_trace(

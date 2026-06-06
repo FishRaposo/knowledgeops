@@ -1,8 +1,10 @@
 /** Redis-backed budget enforcement middleware. */
 
 import { Request, Response, NextFunction } from "express";
+import { Redis } from "ioredis";
 import { config } from "../config";
 import { getRedis, isRedisAvailable } from "../redis";
+import { estimateCost } from "../pricing";
 
 const memoryFallback = new Map<string, { spent: number; limit: number; period: string }>();
 
@@ -21,7 +23,7 @@ export function budgetMiddleware(req: Request, res: Response, next: NextFunction
   const redis = getRedis();
 
   if (isRedisAvailable() && redis) {
-    handleRedisBudget(redis, budgetKey, userId, req, res, next);
+    handleRedisBudget(redis as Redis, budgetKey, userId, req, res, next);
   } else {
     handleMemoryBudget(budgetKey, userId, req, res, next);
   }
@@ -37,7 +39,7 @@ function handleRedisBudget(
 ): void {
   redis
     .get(budgetKey)
-    .then((value) => {
+    .then((value: string | null) => {
       if (value === null) {
         return redis.setex(
           budgetKey,
@@ -47,7 +49,7 @@ function handleRedisBudget(
       }
     })
     .then(() => redis.get(budgetKey))
-    .then((value) => {
+    .then((value: string | null) => {
       if (!value) {
         res.status(500).json({ error: { message: "Budget error", type: "budget_error" } });
         return;
@@ -68,7 +70,8 @@ function handleRedisBudget(
         const bodyObj = body as Record<string, unknown>;
         if (bodyObj?.usage) {
           const usage = bodyObj.usage as { prompt_tokens: number; completion_tokens: number };
-          const estimatedCost = usage.prompt_tokens * 0.00001 + usage.completion_tokens * 0.00003;
+          const model = String(bodyObj.model || req.body?.model || "default");
+          const estimatedCost = estimateCost(model, usage.prompt_tokens, usage.completion_tokens);
           redis.incrbyfloat(budgetKey, estimatedCost).catch(() => {});
           redis.expire(budgetKey, 2764800).catch(() => {});
         }
@@ -116,7 +119,8 @@ function handleMemoryBudget(
     const bodyObj = body as Record<string, unknown>;
     if (bodyObj?.usage) {
       const usage = bodyObj.usage as { prompt_tokens: number; completion_tokens: number };
-      const estimatedCost = usage.prompt_tokens * 0.00001 + usage.completion_tokens * 0.00003;
+      const model = String(bodyObj.model || _req.body?.model || "default");
+      const estimatedCost = estimateCost(model, usage.prompt_tokens, usage.completion_tokens);
       budget.spent += estimatedCost;
     }
     return originalJson(body);
