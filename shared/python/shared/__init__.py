@@ -1,8 +1,10 @@
-"""KnowledgeOps shared Python utilities."""
+"""KnowledgeOps shared domain models.
 
-from shared.config import BaseServiceSettings
-from shared.db import create_async_engine_and_session, is_db_available
-from shared.health import HealthResponse, HealthStatus
+Infrastructure (config, logging, database, health) is provided by ``shared_core``;
+this package now holds only the cross-service domain DTOs. Generic span/cost DTOs
+also live in ``shared_core.tracing`` (``TraceSpan``, ``CostRecord``) for new code.
+"""
+
 from shared.models import (
     Chunk,
     Citation,
@@ -18,11 +20,6 @@ from shared.models import (
 )
 
 __all__ = [
-    "BaseServiceSettings",
-    "create_async_engine_and_session",
-    "is_db_available",
-    "HealthResponse",
-    "HealthStatus",
     "Chunk",
     "Citation",
     "CostRecord",

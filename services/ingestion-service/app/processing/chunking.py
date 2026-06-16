@@ -20,7 +20,9 @@ class TextChunk(BaseModel):
     content: str = Field(description="Chunk text content")
     index: int = Field(description="Position within the document")
     char_count: int = Field(description="Character count")
-    metadata: dict[str, object] = Field(default_factory=dict, description="Chunk metadata")
+    metadata: dict[str, object] = Field(
+        default_factory=dict, description="Chunk metadata"
+    )
 
 
 def chunk_text(
@@ -70,7 +72,10 @@ def chunk_text(
                     content=chunk_content,
                     index=idx,
                     char_count=len(chunk_content),
-                    metadata={"start_char": start, "end_char": start + len(chunk_content)},
+                    metadata={
+                        "start_char": start,
+                        "end_char": start + len(chunk_content),
+                    },
                 )
             )
             idx += 1

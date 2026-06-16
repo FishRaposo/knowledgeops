@@ -1,12 +1,12 @@
 """Pytest fixtures for the Ingestion Service."""
 
-import pytest
-from httpx import AsyncClient
-
+import pytest_asyncio
 from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client() -> AsyncClient:
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

@@ -23,7 +23,7 @@ def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     if len(vec_a) != len(vec_b) or not vec_a:
         return 0.0
 
-    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
     norm_b = math.sqrt(sum(b * b for b in vec_b))
 
@@ -94,8 +94,24 @@ def lexical_similarity(expected: str, actual: str) -> float:
 
 def _tokenize(text: str) -> set[str]:
     stopwords = {
-        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-        "in", "is", "of", "on", "or", "the", "to", "within",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "in",
+        "is",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "within",
     }
     return {
         token

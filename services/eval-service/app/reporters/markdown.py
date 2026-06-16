@@ -4,7 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.runners.rag_runner import _eval_runs
+from app.db import session as db_session
+from app.runners.rag_runner import _eval_runs, get_run
 
 router = APIRouter(prefix="/eval")
 
@@ -13,6 +14,9 @@ router = APIRouter(prefix="/eval")
 async def get_run_report(run_id: str) -> dict[str, str]:
     """Generate a markdown report for an evaluation run.
 
+    Reads the in-memory store first, then falls back to the database for
+    runs persisted before a restart (mirroring ``GET /eval/runs/{id}``).
+
     Args:
         run_id: Evaluation run identifier.
 
@@ -20,6 +24,10 @@ async def get_run_report(run_id: str) -> dict[str, str]:
         Markdown-formatted report string.
     """
     run_data = _eval_runs.get(run_id)
+    if not run_data and db_session.db_available:
+        db_run = await get_run(run_id)
+        if "error" not in db_run:
+            run_data = db_run
     if not run_data:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
 

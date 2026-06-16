@@ -62,14 +62,20 @@ async def health_check() -> AggregatedHealth:
                 service_results.append(
                     ServiceHealth(
                         service=name,
-                        status="healthy" if response.status_code == 200 else "unhealthy",
+                        status="healthy"
+                        if response.status_code == 200
+                        else "unhealthy",
                         response_time_ms=round(elapsed, 2),
                     )
                 )
             except Exception:
                 elapsed = (datetime.now() - start).total_seconds() * 1000
                 service_results.append(
-                    ServiceHealth(service=name, status="unhealthy", response_time_ms=round(elapsed, 2))
+                    ServiceHealth(
+                        service=name,
+                        status="unhealthy",
+                        response_time_ms=round(elapsed, 2),
+                    )
                 )
 
     all_healthy = all(s.status == "healthy" for s in service_results)

@@ -17,7 +17,9 @@ class ParseResult(BaseModel):
 
     title: str = Field(description="Extracted document title")
     content: str = Field(description="Raw extracted text content")
-    metadata: dict[str, object] = Field(default_factory=dict, description="Parser metadata")
+    metadata: dict[str, object] = Field(
+        default_factory=dict, description="Parser metadata"
+    )
 
 
 class BaseParser(ABC):

@@ -52,7 +52,10 @@ def rerank_results(
         term_overlap = len(query_terms & content_terms) / max(len(query_terms), 1)
         phrase_bonus = 0.15 if query.lower() in result.content.lower() else 0.0
         density = len(query_terms & content_terms) / max(len(content_terms), 1)
-        adjusted_score = min(1.0, 0.55 * result.score + 0.3 * term_overlap + 0.15 * density + phrase_bonus)
+        adjusted_score = min(
+            1.0,
+            0.55 * result.score + 0.3 * term_overlap + 0.15 * density + phrase_bonus,
+        )
         reranked.append(
             RankedResult(
                 chunk_id=result.chunk_id,
@@ -68,7 +71,19 @@ def rerank_results(
 
 
 def _terms(text: str) -> set[str]:
-    stopwords = {"the", "and", "for", "with", "that", "this", "from", "about", "are", "was", "were"}
+    stopwords = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "about",
+        "are",
+        "was",
+        "were",
+    }
     return {
         term
         for term in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())

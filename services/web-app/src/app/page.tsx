@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 
 interface HealthSummary {
   status: string;
@@ -16,9 +17,9 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/health");
-        if (!res.ok) throw new Error("System unavailable");
-        const data = await res.json();
+        // fetchApi transparently falls back to demo data when the backend is
+        // unreachable, so the dashboard still renders with no services running.
+        const data = await fetchApi<HealthSummary>("/health");
         setHealth(data);
         setLoading(false);
       } catch (err) {

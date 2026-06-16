@@ -1,26 +1,14 @@
 """Gateway service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class GatewaySettings(BaseServiceSettings):
+class GatewaySettings(BaseAppConfig):
     """Configuration for the API Gateway.
 
-    Inherits common fields from BaseServiceSettings and adds service URL
-    routing and gateway-specific settings.
-
-    Attributes:
-        auth_service_url: Base URL for the Auth Service.
-        ingestion_service_url: Base URL for the Ingestion Service.
-        retrieval_service_url: Base URL for the Retrieval Service.
-        eval_service_url: Base URL for the Eval Service.
-        trace_service_url: Base URL for the Trace Service.
-        llm_gateway_url: Base URL for the LLM Gateway.
+    Inherits common infrastructure fields (DATABASE_URL, REDIS_URL, LOG_LEVEL, ...)
+    from ``shared_core.config.BaseAppConfig`` and adds service-URL routing and
+    gateway-specific settings.
     """
 
     auth_service_url: str = "http://auth-service:8001"

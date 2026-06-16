@@ -5,12 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.config import IngestionSettings
+from app.parsers.base import ParseResult
+from app.workers.ingest_worker import _process_document_background
 from arq.connections import RedisSettings
 from arq.worker import Worker
-
-from app.config import IngestionSettings
-from app.workers.ingest_worker import _process_document_background
-from app.parsers.base import ParseResult
 
 settings = IngestionSettings()
 logger = logging.getLogger("arq.worker")
@@ -49,7 +48,7 @@ if __name__ == "__main__":
     import asyncio
 
     logging.basicConfig(level=logging.INFO)
-    redis_settings = RedisSettings.from_url(settings.redis_url)
+    redis_settings = RedisSettings.from_url(settings.REDIS_URL)
     worker = IngestionWorker(
         redis_settings=redis_settings,
         burst=False,

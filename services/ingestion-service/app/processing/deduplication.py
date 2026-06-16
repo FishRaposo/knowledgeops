@@ -1,10 +1,19 @@
-"""Content deduplication using SHA-256 hashing."""
+"""Content deduplication using SHA-256 hashing.
 
-import hashlib
+The hashing primitive is delegated to ``shared_core.docparse`` so every service
+in the portfolio computes content hashes identically. This swap is byte-for-byte
+compatible with the previous local implementation (see
+``tests/test_convergence.py``), so persisted content hashes are unchanged.
+"""
+
+from shared_core.docparse import compute_hash as _sc_compute_hash
 
 
 def compute_hash(content: str) -> str:
-    """Compute SHA-256 hash of text content.
+    """Compute the SHA-256 hex digest of text content.
+
+    Delegates to :func:`shared_core.docparse.compute_hash`, which produces an
+    identical digest to the previous local ``hashlib`` implementation.
 
     Args:
         content: Text content to hash.
@@ -12,7 +21,7 @@ def compute_hash(content: str) -> str:
     Returns:
         Hex-encoded SHA-256 hash string.
     """
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return _sc_compute_hash(content)
 
 
 def is_duplicate(content: str, existing_hashes: set[str]) -> bool:

@@ -8,14 +8,18 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from shared.readiness import readiness_payload
+from shared_core.errors import BaseApplicationError, application_error_handler
+from shared_core.logging import setup_logging
 
+from app.collector.trace_collector import router as collector_router
 from app.config import TraceSettings
 from app.db.session import check_db, close_db, db_available
-from app.collector.trace_collector import router as collector_router
-from app.storage.trace_store import router as storage_router
 from app.replay.replay_engine import router as replay_router
+from app.storage.trace_store import router as storage_router
 
 settings = TraceSettings()
+setup_logging(level=settings.LOG_LEVEL, service_name="trace-service")
 
 
 @asynccontextmanager
@@ -33,10 +37,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_exception_handler(BaseApplicationError, application_error_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    # Bearer-token auth (no cookies); wildcard origins forbid credentials.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -51,3 +58,9 @@ async def health() -> dict[str, str]:
     """Return service health."""
     status = "healthy" if db_available else "degraded"
     return {"status": status, "service": "trace-service"}
+
+
+@app.get("/ready")
+async def ready() -> dict[str, object]:
+    """Readiness probe: re-checks the database with bounded backoff."""
+    return await readiness_payload("trace-service", check_db)

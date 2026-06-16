@@ -21,7 +21,9 @@ class Document(Base):
     source: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="processing"
+    )
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
     )

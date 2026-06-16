@@ -5,8 +5,9 @@ evaluation runs, and trace collection across all services.
 """
 
 import os
-import pytest
+
 import httpx
+import pytest
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
@@ -38,9 +39,13 @@ class TestHealthChecks:
             for name, url in services.items():
                 try:
                     response = await client.get(url)
-                    assert response.status_code == 200, f"{name} returned {response.status_code}"
+                    assert response.status_code == 200, (
+                        f"{name} returned {response.status_code}"
+                    )
                     data = response.json()
-                    assert data.get("status") == "healthy", f"{name} status: {data.get('status')}"
+                    assert data.get("status") == "healthy", (
+                        f"{name} status: {data.get('status')}"
+                    )
                 except httpx.ConnectError:
                     pytest.skip(f"Service {name} not reachable")
 
@@ -51,7 +56,13 @@ class TestDocumentIngestion:
     @pytest.mark.asyncio
     async def test_upload_markdown_document(self, client: httpx.AsyncClient) -> None:
         """Test uploading a Markdown document through the gateway."""
-        files = {"file": ("test_doc.md", b"# Test Document\n\nContent for integration testing.", "text/markdown")}
+        files = {
+            "file": (
+                "test_doc.md",
+                b"# Test Document\n\nContent for integration testing.",
+                "text/markdown",
+            )
+        }
         response = await client.post("/api/documents/upload", files=files)
         assert response.status_code == 200
         data = response.json()
@@ -68,7 +79,9 @@ class TestDocumentIngestion:
         assert isinstance(data, list)
 
     @pytest.mark.asyncio
-    async def test_upload_rejects_unsupported_format(self, client: httpx.AsyncClient) -> None:
+    async def test_upload_rejects_unsupported_format(
+        self, client: httpx.AsyncClient
+    ) -> None:
         """Test that unsupported file formats are rejected."""
         files = {"file": ("test.exe", b"binary content", "application/octet-stream")}
         response = await client.post("/api/documents/upload", files=files)
@@ -81,7 +94,9 @@ class TestQueryAndRetrieval:
     @pytest.mark.asyncio
     async def test_query_returns_response(self, client: httpx.AsyncClient) -> None:
         """Test that a query returns a structured response."""
-        response = await client.post("/api/query", json={"query": "What is the refund policy?", "top_k": 5})
+        response = await client.post(
+            "/api/query", json={"query": "What is the refund policy?", "top_k": 5}
+        )
         assert response.status_code == 200
         data = response.json()
         assert "answer" in data
@@ -93,7 +108,9 @@ class TestQueryAndRetrieval:
     @pytest.mark.asyncio
     async def test_query_refusal_on_empty_kb(self, client: httpx.AsyncClient) -> None:
         """Test that queries produce valid refusal when no documents are indexed."""
-        response = await client.post("/api/query", json={"query": "obscure topic xyz123"})
+        response = await client.post(
+            "/api/query", json={"query": "obscure topic xyz123"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data.get("refusal"), bool)

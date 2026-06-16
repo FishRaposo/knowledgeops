@@ -1,23 +1,13 @@
 """Auth service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class AuthSettings(BaseServiceSettings):
+class AuthSettings(BaseAppConfig):
     """Configuration for the Auth Service.
 
-    Inherits common fields from BaseServiceSettings and adds auth-specific
-    JWT settings.
-
-    Attributes:
-        jwt_secret: Secret key for JWT token signing.
-        jwt_algorithm: JWT signing algorithm.
-        jwt_expiration_minutes: Token lifetime in minutes.
+    Inherits common infrastructure fields from ``shared_core.config.BaseAppConfig``
+    and adds auth-specific JWT settings.
     """
 
     jwt_secret: str = "change-me-in-production"

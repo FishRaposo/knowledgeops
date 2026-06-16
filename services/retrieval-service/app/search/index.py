@@ -11,7 +11,6 @@ settings = RetrievalSettings()
 
 
 class InMemoryIndex:
-
     _chunks: dict[str, dict[str, Any]]
     _documents: dict[str, dict[str, Any]]
 
@@ -49,13 +48,20 @@ class InMemoryIndex:
         self._chunks.clear()
         self._documents.clear()
 
-    async def get_chunks_by_ids_async(self, chunk_ids: list[str]) -> list[dict[str, Any]]:
-        from app.db.session import db_available, async_session_factory
+    async def get_chunks_by_ids_async(
+        self, chunk_ids: list[str]
+    ) -> list[dict[str, Any]]:
         from sqlalchemy import text
+
+        from app.db.session import async_session_factory, db_available
+
         if db_available:
             async with async_session_factory() as session:
                 rows = await session.execute(
-                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE id = ANY(:ids)"),
+                    text(
+                        "SELECT id, document_id, content, chunk_index, metadata "
+                        "FROM chunks WHERE id = ANY(:ids)"
+                    ),
                     {"ids": chunk_ids},
                 )
                 return [
@@ -70,13 +76,20 @@ class InMemoryIndex:
                 ]
         return [self._chunks[cid] for cid in chunk_ids if cid in self._chunks]
 
-    async def get_documents_by_ids_async(self, doc_ids: list[str]) -> list[dict[str, Any]]:
-        from app.db.session import db_available, async_session_factory
+    async def get_documents_by_ids_async(
+        self, doc_ids: list[str]
+    ) -> list[dict[str, Any]]:
         from sqlalchemy import text
+
+        from app.db.session import async_session_factory, db_available
+
         if db_available:
             async with async_session_factory() as session:
                 rows = await session.execute(
-                    text("SELECT id, title, source, metadata, version, status FROM documents WHERE id = ANY(:ids)"),
+                    text(
+                        "SELECT id, title, source, metadata, version, status "
+                        "FROM documents WHERE id = ANY(:ids)"
+                    ),
                     {"ids": doc_ids},
                 )
                 return [
@@ -93,12 +106,17 @@ class InMemoryIndex:
         return [self._documents[did] for did in doc_ids if did in self._documents]
 
     async def get_chunks_by_document_async(self, doc_id: str) -> list[dict[str, Any]]:
-        from app.db.session import db_available, async_session_factory
         from sqlalchemy import text
+
+        from app.db.session import async_session_factory, db_available
+
         if db_available:
             async with async_session_factory() as session:
                 rows = await session.execute(
-                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE document_id = :doc_id"),
+                    text(
+                        "SELECT id, document_id, content, chunk_index, metadata "
+                        "FROM chunks WHERE document_id = :doc_id"
+                    ),
                     {"doc_id": doc_id},
                 )
                 return [
@@ -114,12 +132,17 @@ class InMemoryIndex:
         return [c for c in self._chunks.values() if c.get("document_id") == doc_id]
 
     async def get_document_async(self, doc_id: str) -> dict[str, Any] | None:
-        from app.db.session import db_available, async_session_factory
         from sqlalchemy import text
+
+        from app.db.session import async_session_factory, db_available
+
         if db_available:
             async with async_session_factory() as session:
                 row = await session.execute(
-                    text("SELECT id, title, source, metadata, version, status FROM documents WHERE id = :id"),
+                    text(
+                        "SELECT id, title, source, metadata, version, status "
+                        "FROM documents WHERE id = :id"
+                    ),
                     {"id": doc_id},
                 )
                 doc = row.mappings().one_or_none()
@@ -136,12 +159,17 @@ class InMemoryIndex:
         return self._documents.get(doc_id)
 
     async def get_chunk_async(self, chunk_id: str) -> dict[str, Any] | None:
-        from app.db.session import db_available, async_session_factory
         from sqlalchemy import text
+
+        from app.db.session import async_session_factory, db_available
+
         if db_available:
             async with async_session_factory() as session:
                 row = await session.execute(
-                    text("SELECT id, document_id, content, chunk_index, metadata FROM chunks WHERE id = :id"),
+                    text(
+                        "SELECT id, document_id, content, chunk_index, metadata "
+                        "FROM chunks WHERE id = :id"
+                    ),
                     {"id": chunk_id},
                 )
                 chunk = row.mappings().one_or_none()

@@ -58,31 +58,37 @@ Most AI platform demos show a simple chatbot. Production systems need ingestion 
 
 ## Architecture
 
-```
-┌─────────────┐     ┌──────────┐     ┌──────────────────────────────────────────┐
-│  Web App    │────▶│  Nginx   │────▶│  API Gateway (FastAPI)                  │
-│  (Next.js)  │     │  :80     │     │  :8000                                  │
-└─────────────┘     └──────────┘     └───────┬──────────────────────────────────┘
-                                              │
-                 ┌────────────────────────────┼──────────────────────────────┐
-                 │                            │                              │
-          ┌──────▼──────┐            ┌───────▼───────┐            ┌────────▼────────┐
-          │ Auth Service │            │ Ingestion Svc │            │ Retrieval Svc   │
-          │ :8001       │            │ :8002         │            │ :8003           │
-          └─────────────┘            └───────┬───────┘            └────────┬────────┘
-                                             │                             │
-          ┌──────────────┐          ┌────────▼──────┐          ┌─────────▼───────┐
-          │ Eval Service  │          │ Trace Service  │          │ LLM Gateway     │
-          │ :8005        │          │ :8006          │          │ :8004           │
-          └──────────────┘          └────────────────┘          └─────────────────┘
-                 │                           │                          │
-          ┌──────▼───────────────────────────▼──────────────────────────▼──────┐
-          │                  PostgreSQL + pgvector    │    Redis               │
-          │                  :5432                   │    :6379               │
-          └──────────────────────────────────────────┴────────────────────────┘
+```mermaid
+graph TB
+    WEB[Web App<br/>Next.js] --> NGINX[Nginx :80]
+    NGINX --> GW[API Gateway<br/>FastAPI :8000]
+    GW --> AUTH[Auth Service :8001]
+    GW --> ING[Ingestion Service :8002]
+    GW --> RET[Retrieval Service :8003]
+    GW --> EVAL[Eval Service :8005]
+    GW --> TRACE[Trace Service :8006]
+    ING --> LLM[LLM Gateway :8004]
+    RET --> LLM
+    EVAL --> LLM
+    LLM --> OAI[(LLM provider)]
+    AUTH --> DB[(PostgreSQL<br/>+ pgvector :5432)]
+    ING --> DB
+    RET --> DB
+    EVAL --> DB
+    TRACE --> DB
+    ING --> REDIS[(Redis :6379)]
+    RET --> REDIS
 ```
 
-All services communicate through the API Gateway. The LLM Gateway proxies all LLM provider calls with middleware for caching, budget enforcement, and logging.
+All services communicate through the API Gateway, which centralizes authentication, RBAC,
+routing, and health aggregation. The LLM Gateway proxies all LLM provider calls with
+middleware for caching, budget enforcement, and logging. Every service degrades gracefully
+to an in-memory fallback when PostgreSQL or Redis is unavailable (see
+[docs/failure-modes.md](docs/failure-modes.md)), and the web console renders a static demo
+dataset behind a visible banner when the backend is unreachable.
+
+A deeper component view, request sequence diagrams, and the verification gate live in
+[docs/architecture.md](docs/architecture.md) and [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md).
 
 ---
 
@@ -228,19 +234,37 @@ The `shared/` directory contains common code used across services:
 
 ## Testing
 
+The unit/integration suites are **hermetic** — they require no PostgreSQL, Redis, or LLM
+gateway. Each Python service is tested from its own directory; the web console is tested
+with Vitest (jsdom) and a Playwright smoke spec that boots Next.js with no backend and
+exercises the demo-mode fallback.
+
 ```bash
-# Run all integration tests
+# Python unit/integration tests (per service, no infra required)
+for svc in api-gateway auth-service ingestion-service retrieval-service eval-service trace-service; do
+  (cd services/$svc && pytest -q)
+done
+
+# Lint + format (must stay clean)
+ruff check services shared/python
+ruff format --check services shared/python
+
+# Frontend gate
+cd services/web-app
+npx tsc --noEmit      # type-check
+npx vitest run        # unit + component tests
+npx next build        # production build
+npx playwright test   # end-to-end smoke (no backend)
+
+# Optional: full-stack integration tests against running services
 docker compose up -d
 pytest tests/ -v
-
-# Run service-specific unit tests
-cd services/ingestion-service
-pytest tests/ -v
-
-# Run frontend tests
-cd services/web-app
-npm test
 ```
+
+Coverage spans routers and domain logic (success + error paths), DB-down and Redis-down
+fallbacks, readiness probes, and golden-output gates that pin numeric/string results before
+any `shared_core` convergence. See [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) for the
+full test strategy table.
 
 ---
 

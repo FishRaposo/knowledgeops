@@ -1,0 +1,27 @@
+{
+  "include": [
+    "services/api-gateway/app",
+    "services/auth-service/app",
+    "services/ingestion-service/app",
+    "services/retrieval-service/app",
+    "services/eval-service/app",
+    "services/trace-service/app",
+    "shared/python/shared"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.next",
+    "services/llm-gateway",
+    "services/web-app",
+    "shared/ts",
+    ".venv"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "analysis": {
+    "typeCheckingMode": "basic",
+    "useLibraryCodeForTypes": true
+  }
+}

@@ -55,7 +55,10 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
     if db_available:
         async with async_session_factory() as session:
             rows = await session.execute(
-                text("SELECT * FROM trace_spans WHERE trace_id = :trace_id ORDER BY start_time"),
+                text(
+                    "SELECT * FROM trace_spans WHERE trace_id = :trace_id "
+                    "ORDER BY start_time"
+                ),
                 {"trace_id": trace_id},
             )
             spans = [_span_from_row(row) for row in rows.mappings()]
@@ -66,7 +69,9 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
         )
 
     import httpx
+
     from app.config import TraceSettings
+
     settings = TraceSettings()
 
     operations = []
@@ -81,7 +86,9 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
 
         if not dry_run:
             if op["service"] == "retrieval-service" and op["operation"] == "query":
-                query_text = op["attributes"].get("query") or op["attributes"].get("query_text")
+                query_text = op["attributes"].get("query") or op["attributes"].get(
+                    "query_text"
+                )
                 if query_text:
                     try:
                         async with httpx.AsyncClient(timeout=2.0) as client:
@@ -90,11 +97,15 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
                                 json={"query": query_text, "top_k": 5},
                             )
                             op["replay_status_code"] = resp.status_code
-                            op["replay_response"] = resp.json() if resp.status_code == 200 else resp.text
+                            op["replay_response"] = (
+                                resp.json() if resp.status_code == 200 else resp.text
+                            )
                             op["replayed"] = True
                     except Exception as e:
                         op["replay_error"] = str(e)
-                        op["replayed"] = True  # Always True to maintain compatibility with test assertions
+                        # Always True to maintain compatibility with test
+                        # assertions
+                        op["replayed"] = True
                 else:
                     op["replayed"] = True
 
@@ -114,5 +125,8 @@ async def replay_trace(trace_id: str, dry_run: bool = True) -> ReplayResult:
         trace_id=trace_id,
         status="dry_run" if dry_run else "replayed",
         operations=operations,
-        message=f"Trace replay {'planned' if dry_run else 'executed'} for {trace_id} with {len(spans)} span(s)",
+        message=(
+            f"Trace replay {'planned' if dry_run else 'executed'} "
+            f"for {trace_id} with {len(spans)} span(s)"
+        ),
     )

@@ -1,18 +1,39 @@
-"""Async database engine and session factory for the Auth Service."""
+"""Async database engine and session factory for the Auth Service.
 
+Backed by shared_core.
+"""
+
+import logging
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from shared_core.database import AsyncDatabaseManager
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import AuthSettings
 
+logger = logging.getLogger(__name__)
+
 settings = AuthSettings()
 
-engine = create_async_engine(settings.database_url, echo=False, pool_size=5, max_overflow=10)
+_db = AsyncDatabaseManager(settings.DATABASE_URL, pool_size=5, max_overflow=10)
+engine = _db.engine
+async_session_factory = _db.AsyncSessionLocal
 
-async_session_factory = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+
+async def check_db() -> bool:
+    """Probe database connectivity for the readiness endpoint.
+
+    Returns ``True`` when a trivial ``SELECT 1`` succeeds, ``False`` otherwise.
+    Never raises.
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True
+    except Exception as exc:
+        logger.warning("Auth DB probe failed: %s", exc)
+        return False
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

@@ -11,9 +11,9 @@ from sqlalchemy import text
 
 from app.config import EvalSettings
 from app.db.session import async_session_factory, db_available
-from app.judges.semantic_match import semantic_match_score
 from app.judges.citation_check import check_citations
 from app.judges.refusal_check import check_refusal
+from app.judges.semantic_match import semantic_match_score
 
 router = APIRouter(prefix="/eval")
 settings = EvalSettings()
@@ -81,7 +81,10 @@ async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
         Evaluation run results with judge scores.
     """
     run_id = str(uuid4())
-    run_name = request.name or f"eval-run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    run_name = (
+        request.name
+        or f"eval-run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    )
     started_at = datetime.now(timezone.utc)
 
     if db_available:
@@ -106,9 +109,17 @@ async def run_evaluation(request: EvalRunRequest) -> EvalRunResponse:
             actual_refusal = actual_data.get("refusal", False)
 
             scores: dict[str, float] = {}
-            scores["semantic_match"] = await semantic_match_score(case.expected_answer, actual_answer)
-            scores["citation_check"] = 1.0 if check_citations(case.expected_citations, actual_citations) else 0.0
-            scores["refusal_check"] = 1.0 if check_refusal(case.should_refuse, actual_refusal) else 0.0
+            scores["semantic_match"] = await semantic_match_score(
+                case.expected_answer, actual_answer
+            )
+            scores["citation_check"] = (
+                1.0
+                if check_citations(case.expected_citations, actual_citations)
+                else 0.0
+            )
+            scores["refusal_check"] = (
+                1.0 if check_refusal(case.should_refuse, actual_refusal) else 0.0
+            )
 
             result = {
                 "query": case.query,
@@ -212,7 +223,8 @@ async def list_runs() -> list[dict[str, Any]]:
                 text(
                     """
                     SELECT id, name, status, started_at, completed_at,
-                           (SELECT COUNT(*) FROM eval_results WHERE run_id = eval_runs.id) AS total_cases
+                           (SELECT COUNT(*) FROM eval_results
+                            WHERE run_id = eval_runs.id) AS total_cases
                     FROM eval_runs
                     ORDER BY started_at DESC
                     """
@@ -260,7 +272,10 @@ async def get_run(run_id: str) -> dict[str, Any]:
                 return {"error": "Run not found"}
 
             result_rows = await session.execute(
-                text("SELECT query, expected, actual, scores FROM eval_results WHERE run_id = :run_id"),
+                text(
+                    "SELECT query, expected, actual, scores "
+                    "FROM eval_results WHERE run_id = :run_id"
+                ),
                 {"run_id": run_id},
             )
             results = [
@@ -280,7 +295,9 @@ async def get_run(run_id: str) -> dict[str, Any]:
                 "total_cases": len(results),
                 "results": results,
                 "started_at": str(run["started_at"]),
-                "completed_at": str(run["completed_at"]) if run["completed_at"] else None,
+                "completed_at": str(run["completed_at"])
+                if run["completed_at"]
+                else None,
             }
 
     if run_id not in _eval_runs:
@@ -315,7 +332,9 @@ async def _load_test_cases(suite_path: str) -> list[TestCase]:
         ]
     except Exception:
         return [
-            TestCase(query="What is the refund policy?", expected_answer="Sample answer"),
+            TestCase(
+                query="What is the refund policy?", expected_answer="Sample answer"
+            ),
         ]
 
 
@@ -347,7 +366,9 @@ async def _emit_eval_trace(
     }
     try:
         async with AsyncClient(timeout=5.0) as client:
-            await client.post(f"{settings.trace_service_url}/traces/ingest", json={"spans": [span]})
+            await client.post(
+                f"{settings.trace_service_url}/traces/ingest", json={"spans": [span]}
+            )
     except Exception:
         return
 

@@ -61,7 +61,8 @@ async def _persist_document(doc_data: dict[str, Any]) -> None:
         await session.execute(
             text(
                 """
-                INSERT INTO document_versions (document_id, version_number, content_hash)
+                INSERT INTO document_versions
+                    (document_id, version_number, content_hash)
                 VALUES (:document_id, :version_number, :content_hash)
                 ON CONFLICT (document_id, version_number) DO UPDATE SET
                     content_hash = EXCLUDED.content_hash
@@ -76,9 +77,7 @@ async def _persist_document(doc_data: dict[str, Any]) -> None:
         await session.commit()
 
 
-async def _persist_chunks(
-    doc_id: str, chunks_data: list[dict[str, Any]]
-) -> None:
+async def _persist_chunks(doc_id: str, chunks_data: list[dict[str, Any]]) -> None:
     async with async_session_factory() as session:
         for chunk_data in chunks_data:
             chunk = Chunk(
@@ -219,7 +218,10 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
     if parser is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format: {ext}. Supported: {', '.join(PARSERS.keys())}",
+            detail=(
+                f"Unsupported file format: {ext}. "
+                f"Supported: {', '.join(PARSERS.keys())}"
+            ),
         )
 
     content = await file.read()
@@ -335,7 +337,10 @@ async def get_document(doc_id: str) -> dict[str, Any]:
             if doc is None:
                 raise HTTPException(status_code=404, detail="Document not found")
             chunk_rows = await session.execute(
-                text("SELECT id, content, chunk_index, metadata FROM chunks WHERE document_id = :doc_id"),
+                text(
+                    "SELECT id, content, chunk_index, metadata "
+                    "FROM chunks WHERE document_id = :doc_id"
+                ),
                 {"doc_id": doc_id},
             )
             chunks = [
@@ -415,6 +420,3 @@ async def get_job_status(job_id: str) -> JobResponse:
         status=job["status"],
         progress=job["progress"],
     )
-
-
-

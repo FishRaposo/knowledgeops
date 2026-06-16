@@ -4,12 +4,14 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from shared.models import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
+    TokenPayload,
     create_access_token,
     generate_api_key,
     hash_api_key,
@@ -17,8 +19,6 @@ from app.auth import (
 )
 from app.database import get_db
 from app.models import ApiKeyModel, UserModel
-
-from shared.models import User
 
 router = APIRouter()
 
@@ -99,8 +99,10 @@ async def get_current_user(request: Request) -> User:
     """Get the current user from the JWT bearer token."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    token = auth_header[len("Bearer "):]
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
+    token = auth_header[len("Bearer ") :]
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -117,8 +119,10 @@ async def verify_token_endpoint(request: Request) -> dict[str, Any]:
     """Verify a JWT bearer token and return the payload."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    token = auth_header[len("Bearer "):]
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
+    token = auth_header[len("Bearer ") :]
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -130,16 +134,23 @@ async def verify_token_endpoint(request: Request) -> dict[str, Any]:
     }
 
 
-async def get_admin_role_from_token(request: Request) -> str:
+async def get_admin_payload_from_token(request: Request) -> TokenPayload:
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    token = auth_header[len("Bearer "):]
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
+    token = auth_header[len("Bearer ") :]
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid token")
     if payload.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
+    return payload
+
+
+async def get_admin_role_from_token(request: Request) -> str:
+    payload = await get_admin_payload_from_token(request)
     return payload.role
 
 
@@ -150,10 +161,16 @@ async def create_api_key(
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyResponse:
     """Create a new API key."""
-    user_result = await db.execute(select(UserModel).where(UserModel.email == request.user_email))
+    user_result = await db.execute(
+        select(UserModel).where(UserModel.email == request.user_email)
+    )
     user = user_result.scalar_one_or_none()
     if user is None:
-        user = UserModel(email=request.user_email, name=request.user_email.split("@")[0], role=request.role)
+        user = UserModel(
+            email=request.user_email,
+            name=request.user_email.split("@")[0],
+            role=request.role,
+        )
         db.add(user)
         await db.flush()
 
@@ -171,16 +188,21 @@ async def create_api_key(
         id=str(api_key_record.id),
         name=request.name,
         key=raw_key,
-        created_at=api_key_record.created_at.isoformat() if api_key_record.created_at else datetime.now(timezone.utc).isoformat(),
+        created_at=api_key_record.created_at.isoformat()
+        if api_key_record.created_at
+        else datetime.now(timezone.utc).isoformat(),
     )
 
 
 @router.get("/keys")
 async def list_api_keys(
+    payload: TokenPayload = Depends(get_admin_payload_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """List API keys for the current user (masked)."""
-    result = await db.execute(select(ApiKeyModel))
+    result = await db.execute(
+        select(ApiKeyModel).where(ApiKeyModel.user_id == UUID(payload.user_id))
+    )
     keys = result.scalars().all()
     return [
         {
@@ -197,11 +219,14 @@ async def list_api_keys(
 @router.delete("/keys/{key_id}")
 async def revoke_api_key(
     key_id: str,
+    role: str = Depends(get_admin_role_from_token),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Revoke an API key."""
-    from sqlalchemy import delete
     from uuid import UUID as UUIDType
+
+    from sqlalchemy import delete
+
     await db.execute(delete(ApiKeyModel).where(ApiKeyModel.id == UUIDType(key_id)))
     await db.commit()
     return {"message": f"Key {key_id} revoked"}

@@ -33,7 +33,10 @@ def format_refusal(reason: str) -> dict[str, Any]:
         Structured refusal response.
     """
     return {
-        "answer": "I cannot answer this question based on the available documents in the knowledge base.",
+        "answer": (
+            "I cannot answer this question based on the available "
+            "documents in the knowledge base."
+        ),
         "citations": [],
         "refusal": True,
         "refusal_reason": reason,

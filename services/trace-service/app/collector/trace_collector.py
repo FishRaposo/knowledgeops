@@ -1,5 +1,6 @@
 """Trace collector API for receiving trace spans from services."""
 
+from collections import OrderedDict
 from typing import Any
 
 from fastapi import APIRouter
@@ -10,7 +11,24 @@ from app.db.session import async_session_factory, db_available
 
 router = APIRouter(prefix="/traces")
 
-_traces_store: dict[str, list[dict[str, Any]]] = {}
+# Bound the in-memory fallback so long degraded operation (DB down) cannot grow
+# memory without limit. When more than ``_MAX_TRACES`` distinct traces are held,
+# the oldest trace is evicted (FIFO). Demo-scale only — the persistent path is
+# PostgreSQL when the DB is available.
+_MAX_TRACES = 1000
+
+
+class _BoundedTraceStore(OrderedDict[str, list[dict[str, Any]]]):
+    """Dict-like trace store that evicts the oldest trace beyond a cap."""
+
+    def __setitem__(self, key: str, value: list[dict[str, Any]]) -> None:
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        while len(self) > _MAX_TRACES:
+            self.popitem(last=False)
+
+
+_traces_store: _BoundedTraceStore = _BoundedTraceStore()
 
 
 class SpanInput(BaseModel):
@@ -34,7 +52,9 @@ class SpanInput(BaseModel):
     operation: str = Field(description="Operation name")
     start_time: str = Field(description="Start timestamp")
     end_time: str = Field(description="End timestamp")
-    attributes: dict[str, Any] = Field(default_factory=dict, description="Span attributes")
+    attributes: dict[str, Any] = Field(
+        default_factory=dict, description="Span attributes"
+    )
 
 
 class IngestRequest(BaseModel):
@@ -93,8 +113,14 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
             await session.execute(
                 text(
                     """
-                    INSERT INTO trace_spans (trace_id, span_id, parent_span_id, service, operation, start_time, end_time, attributes)
-                    VALUES (:trace_id, :span_id, :parent_span_id, :service, :operation, :start_time, :end_time, :attributes)
+                    INSERT INTO trace_spans (
+                        trace_id, span_id, parent_span_id, service,
+                        operation, start_time, end_time, attributes
+                    )
+                    VALUES (
+                        :trace_id, :span_id, :parent_span_id, :service,
+                        :operation, :start_time, :end_time, :attributes
+                    )
                     """
                 ),
                 {
@@ -111,7 +137,11 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
 
             # Check if span contains cost attributes and write to cost_records table
             attrs = span.attributes
-            if attrs and (attrs.get("total_cost_usd") or attrs.get("prompt_tokens") or attrs.get("completion_tokens")):
+            if attrs and (
+                attrs.get("total_cost_usd")
+                or attrs.get("prompt_tokens")
+                or attrs.get("completion_tokens")
+            ):
                 cost = float(attrs.get("total_cost_usd", 0.0) or 0.0)
                 prompt_tokens = int(attrs.get("prompt_tokens", 0) or 0)
                 completion_tokens = int(attrs.get("completion_tokens", 0) or 0)
@@ -122,11 +152,13 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
                 if user_id_str:
                     try:
                         from uuid import UUID
+
                         temp_uuid = UUID(str(user_id_str))
-                        # Verify user_id exists in users table to prevent Foreign Key violations
+                        # Verify user_id exists in users table to prevent
+                        # Foreign Key violations
                         res = await session.execute(
                             text("SELECT id FROM users WHERE id = :id"),
-                            {"id": temp_uuid}
+                            {"id": temp_uuid},
                         )
                         if res.scalar() is not None:
                             user_uuid = temp_uuid
@@ -136,8 +168,16 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
                 await session.execute(
                     text(
                         """
-                        INSERT INTO cost_records (service, user_id, model, prompt_tokens, completion_tokens, total_cost_usd, request_id, created_at)
-                        VALUES (:service, :user_id, :model, :prompt_tokens, :completion_tokens, :total_cost_usd, :request_id, :created_at)
+                        INSERT INTO cost_records (
+                            service, user_id, model, prompt_tokens,
+                            completion_tokens, total_cost_usd, request_id,
+                            created_at
+                        )
+                        VALUES (
+                            :service, :user_id, :model, :prompt_tokens,
+                            :completion_tokens, :total_cost_usd, :request_id,
+                            :created_at
+                        )
                         """
                     ),
                     {
@@ -149,6 +189,6 @@ async def _persist_spans_to_db(spans: list[SpanInput]) -> None:
                         "total_cost_usd": cost,
                         "request_id": span.trace_id,
                         "created_at": span.end_time,
-                    }
+                    },
                 )
         await session.commit()

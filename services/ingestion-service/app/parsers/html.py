@@ -30,7 +30,9 @@ class HtmlParser(BaseParser):
             element.decompose()
 
         title_tag = soup.find("title")
-        title = title_tag.get_text().strip() if title_tag else filename.rsplit(".", 1)[0]
+        title = (
+            title_tag.get_text().strip() if title_tag else filename.rsplit(".", 1)[0]
+        )
 
         content = soup.get_text(separator="\n", strip=True)
 

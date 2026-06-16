@@ -1,18 +1,18 @@
-"""Async database session for the Eval Service with graceful fallback."""
+"""Async database session for the Eval Service (shared_core-backed)."""
 
 import logging
 
-from shared.db import create_async_engine_and_session, is_db_available
-
 from app.config import EvalSettings
+from shared_core.database import AsyncDatabaseManager
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 settings = EvalSettings()
 
-engine, async_session_factory = create_async_engine_and_session(
-    settings.database_url, echo=False, pool_size=10
-)
+_db = AsyncDatabaseManager(settings.DATABASE_URL, pool_size=10)
+engine = _db.engine
+async_session_factory = _db.AsyncSessionLocal
 
 db_available: bool = False
 
@@ -20,13 +20,18 @@ db_available: bool = False
 async def check_db() -> bool:
     """Probe database availability and cache the result."""
     global db_available
-    db_available = await is_db_available(engine)
-    if db_available:
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_available = True
         logger.info("Database connected for eval service.")
-    else:
-        logger.warning("Database unavailable — falling back to in-memory eval store.")
+    except Exception as exc:
+        db_available = False
+        logger.warning(
+            "Database unavailable — falling back to in-memory eval store: %s", exc
+        )
     return db_available
 
 
 async def close_db() -> None:
-    await engine.dispose()
+    await _db.close()

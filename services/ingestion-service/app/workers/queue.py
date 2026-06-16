@@ -8,8 +8,8 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from app.config import IngestionSettings
-from app.workers.ingest_worker import _process_document_background
 from app.parsers.base import ParseResult
+from app.workers.ingest_worker import _process_document_background
 
 logger = logging.getLogger(__name__)
 settings = IngestionSettings()
@@ -24,14 +24,16 @@ async def get_redis_pool() -> Any:
         return _redis_pool
     try:
         _redis_pool = await create_pool(
-            RedisSettings.from_url(settings.redis_url),
+            RedisSettings.from_url(settings.REDIS_URL),
             conn_timeout=2,
             conn_retries=1,
         )
         logger.info("Redis queue connected.")
         return _redis_pool
     except Exception as exc:
-        logger.warning("Redis queue unavailable — falling back to asyncio tasks: %s", exc)
+        logger.warning(
+            "Redis queue unavailable — falling back to asyncio tasks: %s", exc
+        )
         _redis_pool = False
         return None
 

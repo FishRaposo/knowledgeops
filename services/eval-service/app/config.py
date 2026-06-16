@@ -1,24 +1,13 @@
 """Eval service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class EvalSettings(BaseServiceSettings):
+class EvalSettings(BaseAppConfig):
     """Configuration for the Eval Service.
 
-    Inherits common fields from BaseServiceSettings and adds evaluation
-    quality thresholds and upstream service URLs.
-
-    Attributes:
-        llm_gateway_url: LLM Gateway base URL.
-        retrieval_service_url: Retrieval service base URL.
-        semantic_threshold: Minimum score for semantic match pass.
-        citation_strict: Whether to require exact citation matches.
+    Inherits common infrastructure fields from ``shared_core.config.BaseAppConfig``
+    and adds evaluation quality thresholds and upstream service URLs.
     """
 
     llm_gateway_url: str = "http://llm-gateway:8004"

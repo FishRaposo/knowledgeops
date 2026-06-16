@@ -37,10 +37,18 @@ class Document(BaseModel):
     source: str = Field(description="Original source filename or URI")
     content_hash: str = Field(description="SHA-256 hash of raw content")
     version: int = Field(default=1, description="Document version")
-    status: DocumentStatus = Field(default=DocumentStatus.PENDING, description="Processing status")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata")
-    created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
-    updated_at: datetime = Field(default_factory=datetime.now, description="Update timestamp")
+    status: DocumentStatus = Field(
+        default=DocumentStatus.PENDING, description="Processing status"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary metadata"
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="Creation timestamp"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now, description="Update timestamp"
+    )
 
 
 class Chunk(BaseModel):
@@ -62,7 +70,9 @@ class Chunk(BaseModel):
     chunk_index: int = Field(description="Position within parent document")
     content_hash: str = Field(description="SHA-256 hash of chunk content")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Chunk metadata")
-    created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="Creation timestamp"
+    )
 
 
 class Citation(BaseModel):
@@ -94,9 +104,13 @@ class QueryRequest(BaseModel):
     """
 
     query: str = Field(description="Natural language question")
-    top_k: int = Field(default=5, ge=1, le=50, description="Number of results to retrieve")
+    top_k: int = Field(
+        default=5, ge=1, le=50, description="Number of results to retrieve"
+    )
     include_metadata: bool = Field(default=True, description="Include chunk metadata")
-    filters: dict[str, Any] = Field(default_factory=dict, description="Document filters")
+    filters: dict[str, Any] = Field(
+        default_factory=dict, description="Document filters"
+    )
 
 
 class QueryResponse(BaseModel):
@@ -113,11 +127,15 @@ class QueryResponse(BaseModel):
     """
 
     answer: str = Field(description="Generated response text")
-    citations: list[Citation] = Field(default_factory=list, description="Source citations")
+    citations: list[Citation] = Field(
+        default_factory=list, description="Source citations"
+    )
     refusal: bool = Field(default=False, description="Whether answer was refused")
     refusal_reason: Optional[str] = Field(default=None, description="Refusal reason")
     chunks_used: list[UUID] = Field(default_factory=list, description="Chunk IDs used")
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score")
+    confidence: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Confidence score"
+    )
     query: str = Field(description="Original query string")
 
 
@@ -136,7 +154,9 @@ class User(BaseModel):
     email: str = Field(description="User email address")
     name: str = Field(description="Display name")
     role: str = Field(default="viewer", description="RBAC role")
-    created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="Creation timestamp"
+    )
 
 
 class EvalRun(BaseModel):
@@ -154,9 +174,13 @@ class EvalRun(BaseModel):
     id: UUID = Field(description="Unique run identifier")
     name: str = Field(description="Run name")
     status: str = Field(default="pending", description="Run status")
-    config: dict[str, Any] = Field(default_factory=dict, description="Run configuration")
+    config: dict[str, Any] = Field(
+        default_factory=dict, description="Run configuration"
+    )
     started_at: Optional[datetime] = Field(default=None, description="Start timestamp")
-    completed_at: Optional[datetime] = Field(default=None, description="Completion timestamp")
+    completed_at: Optional[datetime] = Field(
+        default=None, description="Completion timestamp"
+    )
 
 
 class EvalResult(BaseModel):
@@ -178,7 +202,9 @@ class EvalResult(BaseModel):
     expected: Optional[str] = Field(default=None, description="Expected answer")
     actual: Optional[str] = Field(default=None, description="Actual answer")
     scores: dict[str, float] = Field(default_factory=dict, description="Judge scores")
-    created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="Creation timestamp"
+    )
 
 
 class TraceSpan(BaseModel):
@@ -197,12 +223,16 @@ class TraceSpan(BaseModel):
 
     trace_id: str = Field(description="Trace identifier")
     span_id: str = Field(description="Span identifier")
-    parent_span_id: Optional[str] = Field(default=None, description="Parent span identifier")
+    parent_span_id: Optional[str] = Field(
+        default=None, description="Parent span identifier"
+    )
     service: str = Field(description="Service name")
     operation: str = Field(description="Operation name")
     start_time: datetime = Field(description="Start timestamp")
     end_time: datetime = Field(description="End timestamp")
-    attributes: dict[str, Any] = Field(default_factory=dict, description="Span attributes")
+    attributes: dict[str, Any] = Field(
+        default_factory=dict, description="Span attributes"
+    )
 
 
 class CostRecord(BaseModel):
@@ -225,7 +255,11 @@ class CostRecord(BaseModel):
     user_id: Optional[UUID] = Field(default=None, description="User identifier")
     model: str = Field(description="LLM model used")
     prompt_tokens: int = Field(default=0, ge=0, description="Prompt token count")
-    completion_tokens: int = Field(default=0, ge=0, description="Completion token count")
+    completion_tokens: int = Field(
+        default=0, ge=0, description="Completion token count"
+    )
     total_cost_usd: float = Field(default=0.0, ge=0.0, description="Cost in USD")
     request_id: Optional[str] = Field(default=None, description="Request identifier")
-    created_at: datetime = Field(default_factory=datetime.now, description="Record timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="Record timestamp"
+    )

@@ -1,24 +1,13 @@
 """Ingestion service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class IngestionSettings(BaseServiceSettings):
+class IngestionSettings(BaseAppConfig):
     """Configuration for the Ingestion Service.
 
-    Inherits common fields from BaseServiceSettings and adds ingestion
-    chunking parameters and upstream service URLs.
-
-    Attributes:
-        llm_gateway_url: LLM Gateway base URL for embeddings.
-        chunk_size: Target chunk size in characters.
-        chunk_overlap: Overlap between chunks in characters.
-        max_file_size_mb: Maximum upload file size in megabytes.
+    Inherits common infrastructure fields from ``shared_core.config.BaseAppConfig``
+    and adds ingestion chunking parameters and upstream service URLs.
     """
 
     llm_gateway_url: str = "http://llm-gateway:8004"

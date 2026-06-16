@@ -32,7 +32,10 @@ async def _all_spans_from_db(service: str | None = None) -> list[dict[str, Any]]
     async with async_session_factory() as session:
         if service:
             rows = await session.execute(
-                text("SELECT * FROM trace_spans WHERE service = :service ORDER BY start_time DESC"),
+                text(
+                    "SELECT * FROM trace_spans WHERE service = :service "
+                    "ORDER BY start_time DESC"
+                ),
                 {"service": service},
             )
         else:
@@ -57,7 +60,7 @@ async def list_traces(
         return results[:limit]
 
     results: list[dict[str, Any]] = []
-    for trace_id, spans in _traces_store.items():
+    for _trace_id, spans in _traces_store.items():
         for span in spans:
             if service and span.get("service") != service:
                 continue
@@ -65,22 +68,6 @@ async def list_traces(
             if len(results) >= limit:
                 return results
     return results
-
-
-@router.get("/traces/{trace_id}")
-async def get_trace(trace_id: str) -> dict[str, Any]:
-    """Get all spans for a specific trace."""
-    if db_available:
-        async with async_session_factory() as session:
-            rows = await session.execute(
-                text("SELECT * FROM trace_spans WHERE trace_id = :trace_id ORDER BY start_time"),
-                {"trace_id": trace_id},
-            )
-            spans = [_span_from_row(row) for row in rows.mappings()]
-            return {"trace_id": trace_id, "spans": spans}
-
-    spans = _traces_store.get(trace_id, [])
-    return {"trace_id": trace_id, "spans": spans}
 
 
 async def _get_all_spans_for_aggregation() -> list[dict[str, Any]]:
@@ -103,8 +90,10 @@ async def get_costs() -> dict[str, Any]:
                 text(
                     """
                     SELECT COALESCE(SUM(total_cost_usd), 0) AS total_usd,
-                           COALESCE(SUM(prompt_tokens), 0) AS total_prompt_tokens,
-                           COALESCE(SUM(completion_tokens), 0) AS total_completion_tokens
+                           COALESCE(SUM(prompt_tokens), 0)
+                               AS total_prompt_tokens,
+                           COALESCE(SUM(completion_tokens), 0)
+                               AS total_completion_tokens
                     FROM cost_records
                     """
                 )
@@ -116,19 +105,29 @@ async def get_costs() -> dict[str, Any]:
 
             # 2. Group by service
             res = await session.execute(
-                text("SELECT service, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY service")
+                text(
+                    "SELECT service, COALESCE(SUM(total_cost_usd), 0) AS cost "
+                    "FROM cost_records GROUP BY service"
+                )
             )
             by_service = {row["service"]: float(row["cost"]) for row in res.mappings()}
 
             # 3. Group by model
             res = await session.execute(
-                text("SELECT model, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY model")
+                text(
+                    "SELECT model, COALESCE(SUM(total_cost_usd), 0) AS cost "
+                    "FROM cost_records GROUP BY model"
+                )
             )
             by_model = {row["model"]: float(row["cost"]) for row in res.mappings()}
 
             # 4. Group by user
             res = await session.execute(
-                text("SELECT COALESCE(user_id::text, 'anonymous') AS user_id, COALESCE(SUM(total_cost_usd), 0) AS cost FROM cost_records GROUP BY user_id")
+                text(
+                    "SELECT COALESCE(user_id::text, 'anonymous') AS user_id, "
+                    "COALESCE(SUM(total_cost_usd), 0) AS cost "
+                    "FROM cost_records GROUP BY user_id"
+                )
             )
             by_user = {row["user_id"]: float(row["cost"]) for row in res.mappings()}
 
@@ -136,8 +135,10 @@ async def get_costs() -> dict[str, Any]:
             res = await session.execute(
                 text(
                     """
-                    SELECT id, service, COALESCE(user_id::text, 'anonymous') AS user_id, model,
-                           prompt_tokens, completion_tokens, total_cost_usd, request_id, created_at
+                    SELECT id, service,
+                           COALESCE(user_id::text, 'anonymous') AS user_id,
+                           model, prompt_tokens, completion_tokens,
+                           total_cost_usd, request_id, created_at
                     FROM cost_records
                     ORDER BY created_at DESC
                     LIMIT 100
@@ -226,12 +227,39 @@ async def get_costs() -> dict[str, Any]:
     }
 
 
+@router.get("/traces/{trace_id}")
+async def get_trace(trace_id: str) -> dict[str, Any]:
+    """Get all spans for a specific trace.
+
+    Declared after ``/traces/costs`` so the static cost path is matched
+    before this dynamic path parameter (FastAPI matches in declaration order).
+    """
+    if db_available:
+        async with async_session_factory() as session:
+            rows = await session.execute(
+                text(
+                    "SELECT * FROM trace_spans WHERE trace_id = :trace_id "
+                    "ORDER BY start_time"
+                ),
+                {"trace_id": trace_id},
+            )
+            spans = [_span_from_row(row) for row in rows.mappings()]
+            return {"trace_id": trace_id, "spans": spans}
+
+    spans = _traces_store.get(trace_id, [])
+    return {"trace_id": trace_id, "spans": spans}
+
+
 @router.get("/alerts")
 async def get_alerts(
-    budget_limit_usd: float = Query(default=None, ge=0.0),
+    budget_limit_usd: float | None = Query(default=None, ge=0.0),
 ) -> dict[str, Any]:
     """Return budget and service failure alerts derived from trace data."""
-    limit = settings.budget_alert_limit_usd if budget_limit_usd is None else budget_limit_usd
+    limit = (
+        settings.budget_alert_limit_usd
+        if budget_limit_usd is None
+        else budget_limit_usd
+    )
     cost_summary = await get_costs()
     alerts: list[dict[str, Any]] = []
 
@@ -240,7 +268,10 @@ async def get_alerts(
             {
                 "type": "budget_overrun",
                 "severity": "critical",
-                "message": f"Total spend ${cost_summary['total_usd']:.2f} exceeds limit ${limit:.2f}.",
+                "message": (
+                    f"Total spend ${cost_summary['total_usd']:.2f} "
+                    f"exceeds limit ${limit:.2f}."
+                ),
                 "current_value": cost_summary["total_usd"],
                 "threshold": limit,
             }
@@ -254,7 +285,8 @@ async def get_alerts(
                     """
                     SELECT service, operation, trace_id, span_id, attributes
                     FROM trace_spans
-                    WHERE attributes->>'status' IN ('error', 'failed') OR attributes->>'error' IS NOT NULL
+                    WHERE attributes->>'status' IN ('error', 'failed')
+                       OR attributes->>'error' IS NOT NULL
                     """
                 )
             )
@@ -263,7 +295,9 @@ async def get_alerts(
                     {
                         "type": "service_failure",
                         "severity": "warning",
-                        "message": f"{row['service']} reported {row['operation']} failure.",
+                        "message": (
+                            f"{row['service']} reported {row['operation']} failure."
+                        ),
                         "trace_id": row["trace_id"],
                         "span_id": row["span_id"],
                     }
@@ -277,7 +311,10 @@ async def get_alerts(
                     {
                         "type": "service_failure",
                         "severity": "warning",
-                        "message": f"{span.get('service', 'unknown')} reported {span.get('operation', 'unknown')} failure.",
+                        "message": (
+                            f"{span.get('service', 'unknown')} reported "
+                            f"{span.get('operation', 'unknown')} failure."
+                        ),
                         "trace_id": span.get("trace_id"),
                         "span_id": span.get("span_id"),
                     }

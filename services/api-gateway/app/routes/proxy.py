@@ -27,7 +27,9 @@ async def verify_request_auth(request: Request) -> dict[str, Any]:
     """Dependency that validates JWT Bearer token via the auth service."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
     token = auth_header.removeprefix("Bearer ").strip()
     if settings.allow_dev_auth and token == settings.demo_token:
         return {
@@ -48,8 +50,10 @@ async def verify_request_auth(request: Request) -> dict[str, Any]:
             return response.json()
         except HTTPException:
             raise
-        except Exception:
-            raise HTTPException(status_code=502, detail="Auth service unavailable")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail="Auth service unavailable"
+            ) from exc
 
 
 @router.api_route("/documents/upload", methods=["POST"])
@@ -62,7 +66,14 @@ async def proxy_document_upload(
     async with AsyncClient(timeout=60.0) as client:
         if "multipart/form-data" in content_type:
             form = await request.form()
-            files = {key: (form[key].filename, await form[key].read(), form[key].content_type) for key in form}
+            files = {
+                key: (
+                    form[key].filename,
+                    await form[key].read(),
+                    form[key].content_type,
+                )
+                for key in form
+            }
             response = await client.post(f"{base_url}/ingest/upload", files=files)
         else:
             body = await request.body()
@@ -79,7 +90,9 @@ async def proxy_list_documents(
 ) -> dict[str, Any]:
     """Proxy document list to the ingestion service."""
     async with AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{settings.ingestion_service_url}/ingest/documents")
+        response = await client.get(
+            f"{settings.ingestion_service_url}/ingest/documents"
+        )
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     return _envelope(response.json(), "documents")
@@ -92,7 +105,9 @@ async def proxy_query(
     """Proxy query to the retrieval service."""
     body = await request.json()
     async with AsyncClient(timeout=30.0) as client:
-        response = await client.post(f"{settings.retrieval_service_url}/retrieve/query", json=body)
+        response = await client.post(
+            f"{settings.retrieval_service_url}/retrieve/query", json=body
+        )
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     return response.json()
@@ -222,7 +237,9 @@ async def proxy_alerts(
     params = dict(request.query_params)
     params.setdefault("budget_limit_usd", str(settings.cost_budget_limit_usd))
     async with AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{settings.trace_service_url}/alerts", params=params)
+        response = await client.get(
+            f"{settings.trace_service_url}/alerts", params=params
+        )
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     return response.json()

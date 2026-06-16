@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { TraceViewer } from "@/components/TraceViewer";
+import { fetchApi } from "@/lib/api";
 
 export default function TracesPage() {
   const [loading, setLoading] = useState(true);
@@ -10,8 +11,8 @@ export default function TracesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/traces");
-        if (!res.ok) throw new Error("Failed to load traces");
+        // fetchApi falls back to demo traces when the backend is unreachable.
+        await fetchApi("/traces");
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load traces");

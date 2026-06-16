@@ -26,7 +26,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]"
+      - name: Install shared-core + shared models + service
+        run: |
+          python -m pip install --upgrade pip
+          pip install "shared-core[docparse,embeddings] @ git+https://github.com/FishRaposo/operator-shared-core.git"
+          pip install -e ../../shared/python
+          pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
 
@@ -50,8 +55,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]"
-      - run: pytest tests/ -v --tb=short || echo "No tests found"
+      - name: Install shared-core + shared models + service
+        run: |
+          python -m pip install --upgrade pip
+          pip install "shared-core[docparse,embeddings] @ git+https://github.com/FishRaposo/operator-shared-core.git"
+          pip install -e ../../shared/python
+          pip install -e ".[dev]" aiosqlite
+      - run: pytest -q
 
   typescript-build:
     runs-on: ubuntu-latest

@@ -1,26 +1,13 @@
 """Retrieval service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class RetrievalSettings(BaseServiceSettings):
+class RetrievalSettings(BaseAppConfig):
     """Configuration for the Retrieval Service.
 
-    Inherits common fields from BaseServiceSettings and adds retrieval
-    quality parameters and upstream service URLs.
-
-    Attributes:
-        llm_gateway_url: LLM Gateway base URL.
-        top_k: Default number of results to retrieve.
-        rerank_top_k: Number of results after reranking.
-        similarity_threshold: Minimum similarity score for valid results.
-        trace_service_url: Trace service URL for logging.
-        generation_model: LLM model for answer generation.
+    Inherits common infrastructure fields from ``shared_core.config.BaseAppConfig``
+    and adds retrieval quality parameters and upstream service URLs.
     """
 
     llm_gateway_url: str = "http://llm-gateway:8004"

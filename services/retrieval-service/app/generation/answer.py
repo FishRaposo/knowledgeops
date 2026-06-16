@@ -6,11 +6,11 @@ from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter
+from shared_core.pricing import calculate_cost
 
 from app.citation.assembler import _chunk_to_citation
 from app.config import RetrievalSettings
 from app.search.index import index
-from shared.config import estimate_cost
 
 router = APIRouter()
 settings = RetrievalSettings()
@@ -51,7 +51,9 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
     """
     if not results:
         return {
-            "answer": "I could not find any relevant information to answer your question.",
+            "answer": (
+                "I could not find any relevant information to answer your question."
+            ),
             "citations": [],
             "confidence": 0.0,
         }
@@ -82,9 +84,12 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
             data = resp.json()
             answer_text = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
-            prompt_tokens = int(usage.get("prompt_tokens", prompt_tokens) or prompt_tokens)
+            prompt_tokens = int(
+                usage.get("prompt_tokens", prompt_tokens) or prompt_tokens
+            )
             completion_tokens = int(
-                usage.get("completion_tokens", _estimate_tokens(answer_text)) or _estimate_tokens(answer_text)
+                usage.get("completion_tokens", _estimate_tokens(answer_text))
+                or _estimate_tokens(answer_text)
             )
     except Exception:
         answer_text = (
@@ -129,7 +134,7 @@ async def generate_answer(query: str, results: list[Any]) -> dict[str, Any]:
         model=model,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        total_cost_usd=estimate_cost(model, prompt_tokens, completion_tokens),
+        total_cost_usd=calculate_cost(model, prompt_tokens, completion_tokens),
     )
 
     return {
@@ -171,6 +176,8 @@ async def _emit_cost_trace(
     }
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(f"{settings.trace_service_url}/traces/ingest", json={"spans": [span]})
+            await client.post(
+                f"{settings.trace_service_url}/traces/ingest", json={"spans": [span]}
+            )
     except Exception:
         return

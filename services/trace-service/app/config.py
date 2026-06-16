@@ -1,22 +1,13 @@
 """Trace service configuration."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "shared" / "python"))
-
-from shared.config import BaseServiceSettings
+from shared_core.config import BaseAppConfig
 
 
-class TraceSettings(BaseServiceSettings):
+class TraceSettings(BaseAppConfig):
     """Configuration for the Trace Service.
 
-    Inherits common fields (database_url, redis_url, log_level) from
-    BaseServiceSettings and adds trace-specific settings.
-
-    Attributes:
-        budget_alert_limit_usd: Cost threshold for budget alerts.
-        retrieval_service_url: URL for the retrieval service.
+    Inherits common infrastructure fields (DATABASE_URL, REDIS_URL, LOG_LEVEL)
+    from ``shared_core.config.BaseAppConfig`` and adds trace-specific settings.
     """
 
     budget_alert_limit_usd: float = 100.0

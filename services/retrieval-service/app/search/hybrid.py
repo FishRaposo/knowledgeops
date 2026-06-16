@@ -125,8 +125,14 @@ async def _persist_import_to_db(request: ImportRequest) -> None:
             await session.execute(
                 text(
                     """
-                    INSERT INTO documents (id, title, source, content_hash, version, status, metadata)
-                    VALUES (:id, :title, :source, :content_hash, :version, :status, :metadata)
+                    INSERT INTO documents (
+                        id, title, source, content_hash, version, status,
+                        metadata
+                    )
+                    VALUES (
+                        :id, :title, :source, :content_hash, :version,
+                        :status, :metadata
+                    )
                     ON CONFLICT (id) DO UPDATE SET
                         title = EXCLUDED.title,
                         source = EXCLUDED.source,
@@ -160,8 +166,14 @@ async def _persist_import_to_db(request: ImportRequest) -> None:
                 await session.execute(
                     text(
                         """
-                        INSERT INTO chunks (id, document_id, content, chunk_index, content_hash, embedding, metadata)
-                        VALUES (:id, :document_id, :content, :chunk_index, :content_hash, :embedding, :metadata)
+                        INSERT INTO chunks (
+                            id, document_id, content, chunk_index,
+                            content_hash, embedding, metadata
+                        )
+                        VALUES (
+                            :id, :document_id, :content, :chunk_index,
+                            :content_hash, :embedding, :metadata
+                        )
                         ON CONFLICT (id) DO UPDATE SET
                             content = EXCLUDED.content,
                             embedding = EXCLUDED.embedding,
@@ -174,8 +186,14 @@ async def _persist_import_to_db(request: ImportRequest) -> None:
                 await session.execute(
                     text(
                         """
-                        INSERT INTO chunks (id, document_id, content, chunk_index, content_hash, metadata)
-                        VALUES (:id, :document_id, :content, :chunk_index, :content_hash, :metadata)
+                        INSERT INTO chunks (
+                            id, document_id, content, chunk_index,
+                            content_hash, metadata
+                        )
+                        VALUES (
+                            :id, :document_id, :content, :chunk_index,
+                            :content_hash, :metadata
+                        )
                         ON CONFLICT (id) DO UPDATE SET
                             content = EXCLUDED.content,
                             metadata = EXCLUDED.metadata

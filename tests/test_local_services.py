@@ -1,10 +1,9 @@
 """Local service behavior tests that do not require Docker."""
 
-import importlib.util
 import asyncio
+import importlib.util
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,8 +28,18 @@ def test_reranker_promotes_query_relevant_content() -> None:
         ROOT / "services" / "retrieval-service" / "app" / "search" / "reranking.py",
     )
     results = [
-        module.RankedResult(chunk_id="a", document_id="d1", content="General onboarding notes", score=0.8),
-        module.RankedResult(chunk_id="b", document_id="d2", content="Refund policy allows returns within thirty days", score=0.4),
+        module.RankedResult(
+            chunk_id="a",
+            document_id="d1",
+            content="General onboarding notes",
+            score=0.8,
+        ),
+        module.RankedResult(
+            chunk_id="b",
+            document_id="d2",
+            content="Refund policy allows returns within thirty days",
+            score=0.4,
+        ),
     ]
 
     reranked = module.rerank_results(results, "refund policy", top_k=2)
@@ -41,9 +50,14 @@ def test_reranker_promotes_query_relevant_content() -> None:
 def test_trace_replay_uses_recorded_spans(monkeypatch) -> None:
     _reset_app_modules()
     sys.path.insert(0, str(ROOT / "services" / "trace-service"))
-    collector = _load_module(
+    _collector = _load_module(
         "trace_collector",
-        ROOT / "services" / "trace-service" / "app" / "collector" / "trace_collector.py",
+        ROOT
+        / "services"
+        / "trace-service"
+        / "app"
+        / "collector"
+        / "trace_collector.py",
     )
     replay = _load_module(
         "replay_engine",
@@ -92,7 +106,9 @@ def test_citation_assembly_uses_stored_document_titles() -> None:
 
     citations = asyncio.run(
         assembler.assemble_citations(
-            assembler.CitationRequest(chunk_ids=["chunk-1"], answer="Returns are accepted.")
+            assembler.CitationRequest(
+                chunk_ids=["chunk-1"], answer="Returns are accepted."
+            )
         )
     )
 
@@ -129,7 +145,12 @@ def test_trace_costs_include_records_users_and_alerts() -> None:
     sys.path.insert(0, str(ROOT / "services" / "trace-service"))
     collector = _load_module(
         "app.collector.trace_collector",
-        ROOT / "services" / "trace-service" / "app" / "collector" / "trace_collector.py",
+        ROOT
+        / "services"
+        / "trace-service"
+        / "app"
+        / "collector"
+        / "trace_collector.py",
     )
     sys.modules["app.collector.trace_collector"] = collector
     store = _load_module(

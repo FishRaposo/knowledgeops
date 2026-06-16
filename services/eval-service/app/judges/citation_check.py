@@ -31,9 +31,7 @@ def check_citations(
         if isinstance(c, dict)
     }
     actual_excerpts = {
-        c.get("excerpt", "").lower()
-        for c in actual_citations
-        if isinstance(c, dict)
+        c.get("excerpt", "").lower() for c in actual_citations if isinstance(c, dict)
     }
 
     for expected in expected_citations:

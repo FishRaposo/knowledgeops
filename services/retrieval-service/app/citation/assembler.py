@@ -1,5 +1,6 @@
 """Citation assembly for linking answers to source documents."""
 
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter
@@ -50,7 +51,8 @@ def _chunk_to_citation(
         # Fallback to synchronous retrieve if not bulk loaded (mostly for local tests)
         doc = index.get_document(doc_id)
     document_title = (
-        str(doc["title"]) if doc and doc.get("title")
+        str(doc["title"])
+        if doc and doc.get("title")
         else str(chunk.get("metadata", {}).get("title", "Document"))
         if isinstance(chunk.get("metadata"), dict)
         else "Document"
@@ -74,10 +76,13 @@ async def assemble_citations(request: CitationRequest) -> list[Citation]:
     and constructs proper citations with real document titles and excerpts.
     """
     chunks = await index.get_chunks_by_ids_async(request.chunk_ids)
-    doc_ids = list(set(str(c["document_id"]) for c in chunks if c.get("document_id")))
+    doc_ids = list({str(c["document_id"]) for c in chunks if c.get("document_id")})
     docs = await index.get_documents_by_ids_async(doc_ids)
     docs_map = {str(d["id"]): d for d in docs}
-    return [_chunk_to_citation(c, doc=docs_map.get(str(c.get("document_id")))) for c in chunks]
+    return [
+        _chunk_to_citation(c, doc=docs_map.get(str(c.get("document_id"))))
+        for c in chunks
+    ]
 
 
 @router.get("/{doc_id}")
